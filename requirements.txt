@@ -1,0 +1,6 @@
+fastapi
+fastapi[standard]
+PyJWT
+pydantic
+mysqlclient
+sqlalchemy
