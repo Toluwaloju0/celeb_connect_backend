@@ -4,3 +4,4 @@ PyJWT
 pydantic
 mysqlclient
 sqlalchemy
+argon2
