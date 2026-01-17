@@ -13,15 +13,15 @@ from utils.responses import function_response
 class EmailSender:
     """ a class which holds functions to send emails to a user"""
 
-    def __init__(self):
+    def connect(self):
         """ the class initializer"""
 
-        self.__sender = smtplib("smtp.gmail.com", 587)
+        self.__sender = smtplib.SMTP("smtp.gmail.com", 587)
         self.__sender.starttls()
         account = getenv("GOOGLE_ACCOUNT")
         password = getenv("GOOGLE_PASSWORD")
 
-        self.sender.login(account, password)
+        self.__sender.login(account, password)
 
     def send_otp_code(self, email_address: str):
         """ a method to send otp codes to the provided email address and save the sent otp code to the database
@@ -85,7 +85,7 @@ class EmailSender:
 
 </body>
 </html>
-""")
+""", subtype="html")
         
         self.__sender.send_message(message)
 
@@ -106,7 +106,8 @@ class EmailSender:
         Return the email associated with the code if found
         """
 
-        otp_object = storage.get_otp_email_object(code)
-        return otp_object
+        storage_otp_response = storage.get_otp_email_object(code)
+        return storage_otp_response
     
 email_sender = EmailSender()
+email_sender.connect()

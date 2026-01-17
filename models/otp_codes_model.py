@@ -3,9 +3,9 @@
 from sqlalchemy import String, Integer
 from sqlalchemy.orm import mapped_column, Mapped
 
-from .base_model import Basemodel
+from .base_model import Basemodel, Base
 
-class OtpCode(Basemodel):
+class OtpCode(Basemodel, Base):
     """ the otp code class """
     
     __tablename__ = "otp_codes"

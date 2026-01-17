@@ -51,3 +51,11 @@ class Basemodel:
         """ a function to use when printing the class"""
 
         return f"{self.to_dict()}"
+    
+    def delete(self):
+        """ a method to delete a user from the database and delete the user object"""
+
+        from database.storage_engine import storage
+
+        storage.delete(self)
+        return "deleted"

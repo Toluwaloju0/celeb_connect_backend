@@ -38,6 +38,9 @@ class Token:
         Return a response containing the user object from the database
         """
 
+        if not access_token:
+            return function_response(False)
+
         try:
             payload = jwt.decode(access_token, self.__access_secret, algorithms="HS256")
             user_id = payload.get("user_id")

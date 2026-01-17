@@ -45,7 +45,7 @@ class DBStorage:
             email(str): the email address of the user
 
         """
-        # from models.user import User
+        from models.user import User
         user = self.__session.scalars(select(User).where(User.email == email)).one_or_none()
         if user:
             if password:
@@ -53,8 +53,17 @@ class DBStorage:
                     ph.verify(user.password, password)
                 except VerifyMismatchError:
                     return function_response(False)
-            return function_response(True, user.to_dict())
+            return function_response(True, user)
         return function_response(False)
+    
+    def get_user_by_id(self, user_id: str):
+        """ a method to get the user using the provided user id"""
+
+        user = self.__session.scalars(select(User).where(User.id == user_id)).one_or_none()
+
+        if not user:
+            return function_response(False)
+        return function_response(True, user)
 
 
     def get_refresh_token(self, token: str):
@@ -81,10 +90,10 @@ class DBStorage:
             return function_response(False)
         return function_response(True, otp_object)
     
-    def delete_otp_code_object(self, otp_object):
+    def delete(self, object):
         """ a method to delete otp codes from the application"""
 
-        self.__session.delete(otp_object)
+        self.__session.delete(object)
         self.__session.commit()
 
     def get_otp_email_object(self, code: str):

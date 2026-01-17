@@ -1,10 +1,10 @@
 """ a module to define functions to call responses for the endpoints and functions """
 
-from typing import Dict
+from typing import Any, Dict
 
 from models.responses import FunctionResponse, APIResponse
 
-def function_response(status: bool, payload: Dict | None = None):
+def function_response(status: bool, payload: Any = None):
     """ a  function to call the function response class """
 
     return FunctionResponse(status=status, payload=payload)
