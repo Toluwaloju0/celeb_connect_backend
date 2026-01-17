@@ -1,10 +1,12 @@
 """ a module to define the authentication route """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Body
 from fastapi.responses import JSONResponse
 from argon2.exceptions import VerifyMismatchError
+from typing import Annotated
 
 from models.user import User, UserCreate, UserLogin, UserLevel
+from models.otp_codes_model import OTPRequest
 from database.storage_engine import storage
 from utils.responses import api_response
 from utils.cookie_token import token_manager
@@ -113,9 +115,10 @@ def request_otp_code(user_response = Depends(get_user_from_access_token)):
 
 
 @auth.post("/otp/validate")
-def validate_otp(code: str, user_response = Depends(get_user_from_access_token)):
+def validate_otp(otp_code: OTPRequest, user_response = Depends(get_user_from_access_token)):
     """ a function to validate user otp codes so as to activate their provided email as valid"""
 
+    otp_code = otp_code.otp_code
     if not user_response.status:
         content = api_response(False, "The user is not found")
         return JSONResponse(content.model_dump())
@@ -124,7 +127,7 @@ def validate_otp(code: str, user_response = Depends(get_user_from_access_token))
         content = api_response(False, "The access code is expired")
         return JSONResponse(content.model_dump())
     
-    user_email_response = email_sender.get_otp_email(code)
+    user_email_response = email_sender.get_otp_email(otp_code)
     user = user_response.payload
 
     if not user_email_response.status:

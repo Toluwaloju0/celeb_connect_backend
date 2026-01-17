@@ -39,7 +39,7 @@ class EmailSender:
                 return function_response(False)
     
             otp_code_object.code = otp_code
-            otp_code_object += 1
+            otp_code_object.count += 1
         else:
             otp_code_object = OtpCode(email_address, otp_code)
         otp_code_object.save()

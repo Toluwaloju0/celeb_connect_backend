@@ -2,8 +2,19 @@
 
 from sqlalchemy import String, Integer
 from sqlalchemy.orm import mapped_column, Mapped
+from pydantic import BaseModel, Field
 
 from .base_model import Basemodel, Base
+
+
+class OTPRequest(BaseModel):
+    otp_code: str = Field(
+        ...,
+        min_length=6,
+        max_length=6,
+        description="6-character OTP code"
+    )
+    
 
 class OtpCode(Basemodel, Base):
     """ the otp code class """
