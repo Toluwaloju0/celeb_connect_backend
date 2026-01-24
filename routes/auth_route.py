@@ -1,19 +1,24 @@
 """ a module to define the authentication route """
 
-from fastapi import APIRouter, Depends, Body
+from fastapi import APIRouter, Depends, Body, Request
 from fastapi.responses import JSONResponse
 from argon2.exceptions import VerifyMismatchError
 from typing import Annotated
 
 from models.user import User, UserCreate, UserLogin, UserLevel
 from models.otp_codes_model import OTPRequest
+from models.admin_model import AdminLogin
+from models.agent_model import AgentLogin
 from database.storage_engine import storage
 from utils.responses import api_response
 from utils.cookie_token import token_manager
 from utils.check_email import check_email
 from utils.check_password import check_password_strength, ph
 from middlewares.get_user_from_cookies import get_user_from_access_token
+from middlewares.admin_access_token import get_admin_from_access_token
+from middlewares.agent_access_token import verify_agent_access_token
 from services.email_sender import email_sender
+from utils.id_string import uuid
 
 auth = APIRouter(tags=["Authentication"], prefix="/auth")
 
@@ -127,7 +132,7 @@ def validate_otp(otp_code: OTPRequest, user_response = Depends(get_user_from_acc
         content = api_response(False, "The access code is expired")
         return JSONResponse(content.model_dump())
     
-    user_email_response = email_sender.get_otp_email(otp_code)
+    user_email_response = storage.get_otp_email(otp_code)
     user = user_response.payload
 
     if not user_email_response.status:
@@ -142,7 +147,11 @@ def validate_otp(otp_code: OTPRequest, user_response = Depends(get_user_from_acc
     
     # update the user from this end and delete the otp code
     user.is_verified = True
-    user.level = UserLevel.VERIFIED
+    if user.old_level == UserLevel.UNVERIFIED:
+        user.old_level = UserLevel.VERIFIED
+        user.level = UserLevel.VERIFIED
+    else:
+        user.level = user.old_level
     user.save()
     
     
@@ -166,4 +175,181 @@ def logout(user_response = Depends(get_user_from_access_token)):
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
 
+    return response
+
+@auth.get("/token/refresh")
+def refresh_token(request: Request):
+    """ a function to refresh the access token if it has expire
+    Args:
+        request: the request context from fastapi
+    """
+
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        content = api_response(False, "The refresh token is not provided, login and try again")
+        return JSONResponse(content.model_dump())
+    
+    verify_refresh_response = token_manager.verify_refresh_token(refresh_token)
+    if not verify_refresh_response.status:
+        content = api_response(False, "The provided token does not match a user on our end")
+        return JSONResponse(content.model_dump())
+    
+    token_object = verify_refresh_response.payload
+    user_id = token_object.user_id
+
+    access_token_response = token_manager.create_access_token(user_id)
+    refresh_token_response = token_manager.create_refresh_token(user_id)
+
+    token_object.delete()
+    content = api_response(True, "The refresh is successful")
+    response = JSONResponse(content.model_dump())
+    response.set_cookie("access_token", access_token_response.payload.get("access_token"))
+    response.set_cookie("refresh_token", refresh_token_response.payload.get("refresh_token"))
+    return response
+
+@auth.post("/admin/login")
+def admin_login(admin: AdminLogin):
+    """ a endpoint to log an admin into the application
+    Args:
+        the admin email and password in the request body
+    """
+    admin_user_response = storage.get_admin_from_email(admin.email, admin.password)
+    if not admin_user_response.status:
+        content = api_response(False, "Login unsuccessful check your password and email and try again")
+        return JSONResponse(content.model_dump())
+    
+    AdminUser = admin_user_response.payload
+    
+    access_token_response = token_manager.create_access_token(AdminUser.id)
+    AdminUser.refresh_token = uuid()
+    AdminUser.save()
+
+    content = api_response(True, "The admin logged in successfully", AdminUser.to_dict())
+    response = JSONResponse(content.model_dump())
+    response.set_cookie("access_token", access_token_response.payload.get("access_token"))
+    response.set_cookie("refresh_token", AdminUser.refresh_token)
+    return response
+
+@auth.get("/admin/refresh")
+def refresh_admin_token(request: Request):
+    """ a method to refresh the admin token
+    Args:
+        request: the frontend request
+    """
+    
+    refresh_token = request.cookies.get("refresh_token")
+
+    admin_user_response = storage.get_admin_from_refresh(refresh_token)
+    if not admin_user_response.status:
+        content = api_response(False, "The refresh token is not valid")
+        return JSONResponse(content.model_dump())
+    
+    AdminUser = admin_user_response.payload
+    
+    AdminUser.refresh_token = uuid()
+    AdminUser.save()
+    access_token_response = token_manager.create_access_token(AdminUser.id)
+
+    content = api_response(True, "The refresh is successful")
+    response = JSONResponse(content.model_dump())
+    response.set_cookie("access_token", access_token_response.payload.get("access_token"))
+    response.set_cookie("refresh_token", AdminUser.refresh_token)
+    return response
+
+@auth.post("/admin/logout")
+def log_out_admin(admin_response = Depends(get_admin_from_access_token)):
+    """ an endpoint to log out an admin from the application """
+
+    if not admin_response.status:
+        content = api_response(False, "User not allowed to perform this operation")
+        return JSONResponse(content.model_dump())
+    
+    if not admin_response.payload:
+        content = api_response(False, "Please refresh and try again")
+        return JSONResponse(content.model_dump())
+    
+    AdminUser = admin_response.payload
+    AdminUser.refresh_token = None
+    AdminUser.save()
+
+    content = api_response(True, "Logout successful")
+    response = JSONResponse(content.model_dump())
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
+    return response
+
+@auth.post("/agent/login")
+def agent_login(agent: AgentLogin):
+    """ an endpoint to log an agent to the route
+    Args:
+        agent: the agent email and password
+    """
+
+    get_agent_response = storage.get_agent_from_email(agent.email, agent.password)
+
+    if not get_agent_response.status:
+        content = api_response(False, "The provided email and password are not correct")
+        return JSONResponse(content.model_dump())
+    
+    if not get_agent_response.payload:
+        content = api_response(False, "No password is provided")
+        return JSONResponse(content.model_dump())
+    
+    agent = get_agent_response.payload
+
+    access_token_response = token_manager.create_access_token(agent.id)
+    refresh_token_response = token_manager.create_agent_refresh(agent.id)
+
+    content = api_response(True, "Login successful", agent.to_dict())
+    response = JSONResponse(content.model_dump())
+    response.set_cookie("access_token", access_token_response.payload.get("access_token"))
+    response.set_cookie("refresh_token", refresh_token_response.payload.get("id"))
+    return response
+
+@auth.get("/agent/refresh")
+def refresh_agent_token(request: Request):
+    """a endpoint to refresh the access and refresh token passed to the user for queries 
+    Args:
+        request: the request context from the fronted
+    """
+
+    refresh_token = request.cookies.get("refresh_token")
+
+    agent_id_response = token_manager.verify_agent_refresh(refresh_token)
+    if not agent_id_response.status:
+        content = api_response(False, "The refresh token is invalid")
+        return JSONResponse(content.model_dump())
+    
+    agent_id = agent_id_response.payload.get("agent_id")
+
+    access_token_response = token_manager.create_access_token(agent_id)
+    refresh_token_response = token_manager.create_agent_refresh(agent_id)
+
+    content = api_response(True, "Token refresh successful")
+    response = JSONResponse(content.model_dump())
+    response.set_cookie("access_token", access_token_response.payload.get("access_token"))
+    response.set_cookie("refresh_token", refresh_token_response.payload.get("id"))
+    return response
+
+@auth.post("/agent/logout")
+def agent_log_out(get_agent_response = Depends(verify_agent_access_token)):
+    """ an endpoint to log a user out from the website """
+
+    if not get_agent_response.status:
+        content = api_response(False, "The user is not allowed to perform this task")
+        return JSONResponse(content.model_dump())
+    
+    if not get_agent_response.payload:
+        cotent = api_response(False, "The access token is expired, please refresh the token and try again")
+        return JSONResponse(content.model_dump())
+    
+    agent = get_agent_response.payload
+
+    if agent.refresh_token:
+        agent.refresh_token.delete()
+
+    content = api_response(True, "Log out successful")
+    response = JSONResponse(content.model_dump())
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
     return response

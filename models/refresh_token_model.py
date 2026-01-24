@@ -12,6 +12,8 @@ class RefreshToken(Basemodel, Base):
 
     user_id: Mapped[str] = mapped_column(String(60), ForeignKey("users.id"), nullable=False)
 
+    user: Mapped["User"] = relationship(back_populates="refresh_token")
+
     def __init__(self, user_id):
         """ the initializer for the refresh token object"""
 
@@ -19,3 +21,20 @@ class RefreshToken(Basemodel, Base):
 
         self.user_id = user_id
 
+class AgentRefresh(Basemodel, Base):
+    """ The class for the admin refresh token """
+
+    __tablename__ = "agent_refresh"
+
+    agent_id: Mapped[str] = mapped_column(String(60), ForeignKey("agents.id"))
+
+    agent: Mapped["Agent"] = relationship(back_populates="refresh_token")
+
+    def __init__(self, agent_id):
+        """ the class initializer
+        Args:
+            agent_id: the agent id
+        """
+
+        super().__init__()
+        self.agent_id = agent_id

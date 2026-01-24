@@ -1,7 +1,7 @@
 """ a module to provide connection to MySql database for user storage and queries """
 
 from os import getenv
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, delete
 from sqlalchemy.orm import Session
 from argon2.exceptions import VerifyMismatchError
 
@@ -30,7 +30,9 @@ class DBStorage:
         from models.base_model import Base
         from models.user import User
         from models.otp_codes_model import OtpCode
-        from models.refresh_token_model import RefreshToken
+        from models.refresh_token_model import RefreshToken, AgentRefresh
+        from models.agent_model import Agent
+        from models.celebrity_model import Celeb
 
         Base.metadata.create_all(self.__engine)
 
@@ -75,7 +77,7 @@ class DBStorage:
 
         token_object = self.__session.scalars(select(RefreshToken).where(RefreshToken.id == token)).one_or_none()
         if token_object:
-            return function_response(True, token_object.to_dict())
+            return function_response(True, token_object)
         return function_response(False)
     
     def get_otp_object(self, email_address):
@@ -96,7 +98,7 @@ class DBStorage:
         self.__session.delete(object)
         self.__session.commit()
 
-    def get_otp_email_object(self, code: str):
+    def get_otp_email(self, code: str):
         """ a method to query the database based on the code provided
         Args:
             code (str): the code to be queried for
@@ -108,8 +110,107 @@ class DBStorage:
             return function_response(True, otp_object)
         return function_response(False)
     
+    def get_admin_from_email(self, email, password = None):
+        """ a method to get the admin from the database using the email address
+        Args:
+            email: the email of the admin in the database
+        """
 
+        from models.admin_model import Admin
 
+        admin = self.__session.scalars(select(Admin).where(Admin.email == email)).one_or_none()
+        if not admin:
+            return function_response(False)
+        try:
+            ph.verify(admin.password, password)
+            return function_response(True, admin)
+        except VerifyMismatchError:
+            return function_response(False)
+    
+    
+    def get_admin_from_id(self, admin_id):
+        """ a method to get the admin from the database using the admin id
+        Args:
+            admin_id: the id of the admin
+        """
+
+        from models.admin_model import Admin
+
+        admin = self.__session.scalars(select(Admin).where(Admin.id == admin_id)).one_or_none()
+
+        return function_response(True, admin) if admin else function_response(False)
+    
+    def get_admin_from_refresh(self, refresh_token: str):
+        """ a method to get the admin from the refresh token provided 
+        Args:
+            refresh_token: the refresh token to be user
+        """
+
+        from models.admin_model import Admin
+
+        admin = self.__session.scalars(select(Admin).where(Admin.refresh_token == refresh_token)).one_or_none()
+
+        return function_response(True, admin) if admin else function_response(False)
+    
+    def get_agent_from_email(self, email: str, password: str | None = None):
+        """ a method to get the agent from the database and verify the password
+        Args:
+            email (str): the agent email address
+            password (str): the agent password
+        """
+
+        from models.agent_model import Agent
+
+        agent = self.__session.scalars(select(Agent).where(Agent.email == email)).one_or_none()
+
+        if not agent:
+            return function_response(False)
+        
+        if not password:
+            return function_response(True)
+        
+        try:
+            ph.verify(agent.password, password)
+            return function_response(True, agent)
+        except VerifyMismatchError:
+            return function_response(False)
+        
+    def get_agent_from_id(self, agent_id: str):
+        """ a method to get the agent from the agent id provided
+        Args:
+            agent_id: the id of the agent
+        """
+
+        from models.agent_model import Agent
+
+        agent = self.__session.scalars(select(Agent).where(Agent.id == agent_id)).one_or_none()
+
+        return function_response(True, agent) if agent else function_response(False)
+    
+    def get_agent_id_from_refresh(self, token):
+        """ a method to get the agent refresh token
+        Args:
+            token (str): the token to be queried for
+        """
+        from models.refresh_token_model import AgentRefresh
+
+        agent_id = self.__session.scalars(select(AgentRefresh.agent_id).where(AgentRefresh.id == token)).one_or_none()
+        return function_response(True, {"agent_id": agent_id}) if agent_id else function_response(False)
+    
+    def delete_agent_refresh_token(self, agent_id):
+        """a method to delete all the agent refresh token for the agent with that id
+        Args:
+            agent_id: the agent id with the reference to the agent_id column
+        """
+
+        from models.refresh_token_model import AgentRefresh
+
+        self.__session.execute(delete(AgentRefresh).where(AgentRefresh.agent_id == agent_id))
+        self.__session.commit()
+
+        # agent_refresh = self.__session.scalars(select(AgentRefresh).where(AgentRefresh.agent_id == agent_id)).one_or_none()
+        # if agent_refresh:
+        #     agent_refresh.delete()
 
     def close(self):
         self.__session.flush()

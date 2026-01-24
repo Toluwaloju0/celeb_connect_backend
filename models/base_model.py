@@ -36,6 +36,12 @@ class Basemodel:
             my_dict["created_at"] = str(my_dict["created_at"])
         if my_dict.get("date_of_birth"):
             my_dict["date_of_birth"] = str(my_dict["date_of_birth"])
+        if my_dict.get("refresh_token"):
+            del my_dict["refresh_token"]
+        if my_dict.get("agent"):
+            del my_dict["agent"]
+        if my_dict.get("celebs"):
+            del my_dict["celebs"]
 
         return my_dict
 

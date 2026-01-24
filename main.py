@@ -7,6 +7,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from routes.auth_route import auth
+from routes.user_route import user
+from routes.admin_route import admin
+from routes.agent_route import agent
 
 app = FastAPI()
 
@@ -36,7 +39,9 @@ def status():
 
 
 app.include_router(auth)
-
+app.include_router(user)
+app.include_router(admin)
+app.include_router(agent)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", port=8080, reload=True)
