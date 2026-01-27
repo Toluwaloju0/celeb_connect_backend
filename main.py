@@ -3,14 +3,15 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+
 from routes.auth_route import auth
 from routes.user_route import user
 from routes.admin_route import admin
 from routes.agent_route import agent
-
+from database.storage_engine import storage
 app = FastAPI()
 
 app.add_middleware(
@@ -42,6 +43,12 @@ app.include_router(auth)
 app.include_router(user)
 app.include_router(admin)
 app.include_router(agent)
+
+@app.middleware("http")
+async def after_request_middleware(request: Request, call_next):
+    response = await call_next(request)
+    storage.close()
+    return response
 
 if __name__ == "__main__":
     uvicorn.run("main:app", port=8080, reload=True)

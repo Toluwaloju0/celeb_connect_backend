@@ -15,7 +15,7 @@ from utils.id_string import uuid
 class EmailSender:
     """ a class which holds functions to send emails to a user"""
 
-    def connect(self):
+    def __init__(self):
         """ the class initializer"""
 
         self.__sender = smtplib.SMTP("smtp.gmail.com", 587)
@@ -101,7 +101,6 @@ class EmailSender:
         """
 
         password = uuid().split("-")[-1]
-        print(password)
 
         message = EmailMessage()
         message["To"] = agent_email
@@ -193,4 +192,3 @@ class EmailSender:
         return function_response(True, password)
 
 email_sender = EmailSender()
-email_sender.connect()

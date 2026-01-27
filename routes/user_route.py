@@ -23,11 +23,11 @@ def get_me(user_response = Depends(get_user_from_access_token)):
 
     if not user_response.status:
         content = api_response(False, "The access token is not valid")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 401)
     
     if not user_response.payload:
         content - api_response(False, "The Token expired, Refresh the token and try again")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 205)
     
     user = user_response.payload
 
@@ -40,31 +40,31 @@ def update_password(payload: Dict[str, str] = Body(), user_response = Depends(ge
 
     if not user_response.status:
         content = api_response(False, "The access token is not valid")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 401)
     
     if not user_response.payload:
         content - api_response(False, "The Token expired, Refresh the token and try again")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 205)
     
     user, old_password, new_password = user_response.payload, payload.get("old_password"), payload.get("new_password")
 
     if not old_password or not new_password:
         content = api_response(False, "The old and new passwords must be provided")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     if old_password == new_password:
         content = api_response(False, "The old and new password must be different")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     try:
         ph.verify(user.password, old_password)
     except VerifyMismatchError:
         content = api_response(False, "the old password does not match the user password")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     check_password_response = check_password_strength(new_password)
     if not check_password_response.status:
         content = api_response(False, "The password provided does not match the required strength")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     user.password = ph.hash(new_password)
     user.save()
@@ -78,22 +78,22 @@ def update_email(payload: Dict[str, EmailStr] = Body(), user_response=Depends(ge
 
     if not user_response.status:
         content = api_response(False, "The access token is not valid")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 401)
     
     if not user_response.payload:
         content - api_response(False, "The Token expired, Refresh the token and try again")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 205)
     
     user, new_email = user_response.payload, payload.get("new_email")
 
     if not new_email:
         content = api_response(False, "The new email address must be provided")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     check_email_response = check_email(new_email)
     if not check_email_response.status:
         content = api_response(False, "The provided email address is not up to the required standard")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     user.email = new_email
     user.is_verified = False
@@ -108,11 +108,11 @@ def update_me(payload: Dict[str, str] = Body(), user_response = Depends(get_user
 
     if not user_response.status:
         content = api_response(False, "The access token is not valid")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 401)
     
     if not user_response.payload:
         content = api_response(False, "The Token expired, Refresh the token and try again")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 205)
     
     user, update = user_response.payload, False
     first_name = payload.get("first_name")
@@ -145,11 +145,11 @@ def delete_me(user_response = Depends(get_user_from_access_token)):
 
     if not user_response.status:
         content = api_response(False, "The access token is not valid")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 401)
     
     if not user_response.payload:
         content = api_response(False, "The Token expired, Refresh the token and try again")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 205)
     
     user = user_response.payload
 

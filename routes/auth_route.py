@@ -30,7 +30,7 @@ async def signup(user: UserCreate):
     if existing_user.status:
         # the user exists so the user should login instead of signing up again
         content = api_response(False, "The user exists")
-        response = JSONResponse(content.model_dump())
+        response = JSONResponse(content.model_dump(), 500)
         return response
     
     # implement more checks here for the user
@@ -38,13 +38,13 @@ async def signup(user: UserCreate):
     email_check_response = check_email(user.email)
     if not email_check_response.status:
         content = api_response(False, "The email does not have a valid domain")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     # check the strength of the password
     password_strength_response = check_password_strength(user.password)
     if not password_strength_response.status:
         content = api_response(False, "The password does not reach the minimum password strength requirement")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     # send an email to the user for otp verification
 
@@ -59,7 +59,7 @@ async def signup(user: UserCreate):
     refresh_token_response = token_manager.create_refresh_token(user.id)
     # create the refresh token for user refresh
     content = api_response(True, "The user has been created", user.to_dict())
-    response = JSONResponse(content.model_dump())
+    response = JSONResponse(content.model_dump(), 201)
     response.set_cookie("access_token", access_tokesn_response.payload.get("access_token"))
     response.set_cookie("refresh_token", refresh_token_response.payload.get("refresh_token"))
     return response
@@ -76,7 +76,7 @@ def login(user: UserLogin):
     if not saved_user_response.status:
         # return a response that the user is not found
         content = api_response(False, "No user is found for the current email address and password")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     user = saved_user_response.payload
 
@@ -99,11 +99,11 @@ def request_otp_code(user_response = Depends(get_user_from_access_token)):
 
     if not user_response.status:
         content = api_response(False, "The user is not found")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 401)
     
     if not user_response.payload:
         content = api_response(False, "The access code is expired")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 205)
     
     if user_response.payload.is_verified:
         # the user is already verified so no otp code can be requested again
@@ -114,7 +114,7 @@ def request_otp_code(user_response = Depends(get_user_from_access_token)):
 
     if not send_mail_response.status:
         content = api_response(False, "The email mail was not sent successfully")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     content = api_response(True, "The mail was successfully sent, Check your email for the code")
     return JSONResponse(content.model_dump())
 
@@ -126,22 +126,22 @@ def validate_otp(otp_code: OTPRequest, user_response = Depends(get_user_from_acc
     otp_code = otp_code.otp_code
     if not user_response.status:
         content = api_response(False, "The user is not found")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 401)
     
     if not user_response.payload:
         content = api_response(False, "The access code is expired")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 205)
     
     user_email_response = storage.get_otp_email(otp_code)
     user = user_response.payload
 
     if not user_email_response.status:
         content = api_response(False, "The OTP code is invalid")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     if user_email_response.payload.email != user.email:
         content = api_response(False, "Your email address does not correspond with the provided otp code")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     user_email_response.payload.delete()
     
@@ -164,11 +164,11 @@ def logout(user_response = Depends(get_user_from_access_token)):
 
     if not user_response.status:
         content = api_response(False, "The user is not found")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 401)
     
     if not user_response.payload:
         content = api_response(False, "The access code is expired")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 205)
 
     content = api_response(True, "Log out successful")
     response = JSONResponse(content.model_dump())
@@ -187,12 +187,12 @@ def refresh_token(request: Request):
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         content = api_response(False, "The refresh token is not provided, login and try again")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     verify_refresh_response = token_manager.verify_refresh_token(refresh_token)
     if not verify_refresh_response.status:
         content = api_response(False, "The provided token does not match a user on our end")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     token_object = verify_refresh_response.payload
     user_id = token_object.user_id
@@ -216,7 +216,7 @@ def admin_login(admin: AdminLogin):
     admin_user_response = storage.get_admin_from_email(admin.email, admin.password)
     if not admin_user_response.status:
         content = api_response(False, "Login unsuccessful check your password and email and try again")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     AdminUser = admin_user_response.payload
     
@@ -242,7 +242,7 @@ def refresh_admin_token(request: Request):
     admin_user_response = storage.get_admin_from_refresh(refresh_token)
     if not admin_user_response.status:
         content = api_response(False, "The refresh token is not valid")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     AdminUser = admin_user_response.payload
     
@@ -262,11 +262,11 @@ def log_out_admin(admin_response = Depends(get_admin_from_access_token)):
 
     if not admin_response.status:
         content = api_response(False, "User not allowed to perform this operation")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 401)
     
     if not admin_response.payload:
         content = api_response(False, "Please refresh and try again")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 205)
     
     AdminUser = admin_response.payload
     AdminUser.refresh_token = None
@@ -289,11 +289,11 @@ def agent_login(agent: AgentLogin):
 
     if not get_agent_response.status:
         content = api_response(False, "The provided email and password are not correct")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     if not get_agent_response.payload:
         content = api_response(False, "No password is provided")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     agent = get_agent_response.payload
 
@@ -318,7 +318,7 @@ def refresh_agent_token(request: Request):
     agent_id_response = token_manager.verify_agent_refresh(refresh_token)
     if not agent_id_response.status:
         content = api_response(False, "The refresh token is invalid")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 500)
     
     agent_id = agent_id_response.payload.get("agent_id")
 
@@ -337,11 +337,11 @@ def agent_log_out(get_agent_response = Depends(verify_agent_access_token)):
 
     if not get_agent_response.status:
         content = api_response(False, "The user is not allowed to perform this task")
-        return JSONResponse(content.model_dump())
+        return JSONResponse(content.model_dump(), 401)
     
     if not get_agent_response.payload:
-        cotent = api_response(False, "The access token is expired, please refresh the token and try again")
-        return JSONResponse(content.model_dump())
+        content = api_response(False, "The access token is expired, please refresh the token and try again")
+        return JSONResponse(content.model_dump(), 205)
     
     agent = get_agent_response.payload
 

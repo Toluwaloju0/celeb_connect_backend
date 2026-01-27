@@ -31,6 +31,9 @@ class AgentTier(int, enum.Enum):
     MANAGER = 4
     OWNER = 5
 
+class UpdateAgentTier(BaseModel):
+    tier: AgentTier
+
 class Agent(Basemodel, Base):
     """ the agent class """
 
@@ -44,6 +47,7 @@ class Agent(Basemodel, Base):
     password: Mapped[str] = mapped_column(String(2048), nullable=False)
     number_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    profile_url: Mapped[str] = mapped_column(String(60), nullable=True, unique=True, default=None)
 
     admin: Mapped["Admin"] = relationship(back_populates="agents")
     refresh_token: Mapped["AgentRefresh"] = relationship(back_populates="agent", cascade="all, delete")

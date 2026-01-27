@@ -175,7 +175,7 @@ class DBStorage:
         except VerifyMismatchError:
             return function_response(False)
         
-    def get_agent_from_id(self, agent_id: str):
+    def get_agent_from_id(self, agent_id):
         """ a method to get the agent from the agent id provided
         Args:
             agent_id: the id of the agent
@@ -184,9 +184,24 @@ class DBStorage:
         from models.agent_model import Agent
 
         agent = self.__session.scalars(select(Agent).where(Agent.id == agent_id)).one_or_none()
-
         return function_response(True, agent) if agent else function_response(False)
-    
+        
+    def get_agents(self, offset: int, limit: int):
+        """ a method to get the agent from the agent id provided
+        Args:
+            agent_id: the id of the agent or none when i want to get all the agents for the admin
+        """
+
+        from models.agent_model import Agent
+
+        agents = self.__session.scalars(select(Agent).offset(offset).limit(limit)).all()
+        my_list = []
+        if len(agents) > 0:
+            for agent in agents:
+                my_list.append(agent.to_dict())
+            return function_response(True, my_list)
+        return function_response(False)
+
     def get_agent_id_from_refresh(self, token):
         """ a method to get the agent refresh token
         Args:
@@ -208,9 +223,79 @@ class DBStorage:
         self.__session.execute(delete(AgentRefresh).where(AgentRefresh.agent_id == agent_id))
         self.__session.commit()
 
-        # agent_refresh = self.__session.scalars(select(AgentRefresh).where(AgentRefresh.agent_id == agent_id)).one_or_none()
-        # if agent_refresh:
-        #     agent_refresh.delete()
+    def get_celebrities(
+            self,
+            agent_id: str,
+            limit: int,
+            offset: int,
+            celeb_id: str | None = None
+    ):
+        """ a method to get the celebrities on a given agent
+        Args:
+            agent_id: the agent is of the celebrities
+            limit: the dataset limit
+            offset: the amount of data to skip
+            celeb_id: the id of the celebrity to get if founc
+        """
+
+        from models.celebrity_model import Celeb
+
+        if celeb_id:
+            celeb = self.__session.scalars(select(Celeb).where(Celeb.agent_id == agent_id).where(Celeb.id == celeb_id)).one_or_none()
+
+            return function_response(True, celeb.to_dict()) if celeb else function_response(False)
+        
+        celeb_list = []
+        celebs = self.__session.scalars(select(Celeb).where(Celeb.agent_id == agent_id).offset(offset).limit(limit)).all()
+        if len(celebs) > 0:
+            for celeb in celebs:
+                celeb_list.append(celeb.to_dict())
+        else:
+            return function_response(False)
+        
+        return function_response(True, celeb_list)
+    
+    def get_celeb_by_id(self, celeb_id: str):
+        """ a method to get the celebrity from the provided celeb id
+        Args:
+            celeb_id (str): the celebrity id
+        """
+
+        from models.celebrity_model import Celeb
+
+        if not celeb_id:
+            return function_response(False)
+        
+        celeb = self.__session.scalars(select(Celeb).where(Celeb.id == celeb_id)).one_or_none()
+        return function_response(True, celeb) if celeb else function_response(False)
+    
+    def get_celebrities_for_admin(self, limit: int, offset: int):
+        """ a method to get all the celebrities for the admin
+        Args:
+            limit: the limit of data to be gotten
+            offset: the amount of data to be skipped
+        """
+
+        from models.celebrity_model import Celeb
+
+        celebs = self.__session.scalars(select(Celeb).limit(limit).offset(offset)).all()
+        my_list = [celeb.to_dict() for celeb in celebs]
+
+        return function_response(True, my_list) if len(my_list) > 0 else function_response(False)
+    
+    def get_users_for_admin(self, limit, offset):
+        """ a method to get the users of the app for the admin dashboard
+        Args:
+            limit: the limit of the request
+            offset: the amount of data to jump over in the database
+        """
+        
+        from models.user import User
+
+        users = self.__session.scalars(select(User).limit(limit).offset(offset)).all()
+
+        my_list = [user.to_dict() for user in users]
+        return function_response(True, my_list) if len(my_list) > 0 else function_response(False)
 
     def close(self):
         self.__session.flush()
