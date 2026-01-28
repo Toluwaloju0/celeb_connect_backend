@@ -63,9 +63,7 @@ class DBStorage:
 
         user = self.__session.scalars(select(User).where(User.id == user_id)).one_or_none()
 
-        if not user:
-            return function_response(False)
-        return function_response(True, user)
+        return function_response(True, user) if user else function_response(False)
 
 
     def get_refresh_token(self, token: str):

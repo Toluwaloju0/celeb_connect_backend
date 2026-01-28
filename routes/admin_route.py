@@ -7,6 +7,7 @@ from typing import Dict
 from database.storage_engine import storage
 from models.agent_model import AgentCreate, Agent, UpdateAgentTier
 from models.admin_model import Admin
+from models.user import UpdateUserLevel
 from utils.responses import api_response
 from utils.check_email import check_email
 from utils.check_password import ph
@@ -50,8 +51,6 @@ e = the admin as saved in the access token
     # send an email to the agent with an otp code for email verification
     password_response = email_sender.send_agent_password(agent.email)
     password = password_response.payload
-
-    print(password)
 
     admin.agents.append(Agent(agent.name, agent.email, ph.hash(password), agent.phone_number))
     admin.save()
@@ -280,4 +279,61 @@ def get_all_user(user_id: str = None, page: int = 1, limit: int = 10, get_admin_
     
     user_response = storage.get_user_by_id(user_id)
     content = api_response(True, "User gotten", user_response.payload.to_dict()) if user_response.status else api_response(False, "No user with this id found")
+    return JSONResponse(content.model_dump())
+
+@admin.delete("/user/{user_id}")
+def delete_user_by_admin(user_id: str, get_admin_response = Depends(get_admin_from_access_token)):
+    """an endpoint to delete a user by an admin
+    Args:
+        user_id: the id of the user to be deleted
+    """
+
+    if not get_admin_response.status:
+        content = api_response(False, "The user is not allowed to use this route")
+        return JSONResponse(content.model_dump(), 401)
+    
+    if not get_admin_response.payload:
+        content = api_response(False, "The access token is expired refresh to use the application")
+        return JSONResponse(content.model_dump(), 205)
+    
+    user_response = storage.get_user_by_id(user_id)
+    if not user_response.status:
+        content = api_response(False, "No user found")
+        return JSONResponse(content.model_dump(), 500)
+    
+    user = user_response.payload
+    user.delete()
+
+    content = api_response(True, "The user has been deleted successfully")
+    return JSONResponse(content.model_dump())
+
+@admin.patch("/user/{user_id}/profile/level")
+def update_user_level(user_id: str, payload: UpdateUserLevel, get_admin_response = Depends(get_admin_from_access_token)):
+    """ an endpoint for an admin to update a user level to either basic or premium
+    Args:
+        user_id: the id of the user to be updated
+        payload: the user level to be updated
+        get_admin_response: the admin response from the access token
+    """
+    if not get_admin_response.status:
+        content = api_response(False, "The user is not allowed to use this route")
+        return JSONResponse(content.model_dump(), 401)
+    
+    if not get_admin_response.payload:
+        content = api_response(False, "The access token is expired refresh to use the application")
+        return JSONResponse(content.model_dump(), 205)
+    
+    user_response = storage.get_user_by_id(user_id)
+    if not user_response.status:
+        content = api_response(False, "No user is found for the provided id")
+        return JSONResponse(content.model_dump(), 500)
+    
+    user_level = payload.new_level
+    user = user_response.payload
+
+    user.level = user_level
+    user.old_level = user_level
+
+    user.save()
+    content = api_response(True, "The users level has been updated successfully", user.to_dict())
     return JSONResponse(content.model_dump())

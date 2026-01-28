@@ -33,6 +33,11 @@ class UserLevel(str, enum.Enum):
     BASIC = "Basic"
     PREMIUM = "Premium"
 
+class UpdateUserLevel(BaseModel):
+    """ a class to get a tier used to update a user level"""
+
+    new_level: UserLevel
+
 class User(Basemodel, Base):
 
     __tablename__ = "users"
