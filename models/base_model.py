@@ -46,6 +46,12 @@ class Basemodel:
             del my_dict["admin"]
         if my_dict.get("agents"):
             del my_dict["agents"]
+        if my_dict.get("availability"):
+            del my_dict["availability"]
+        if my_dict.get("celeb"):
+            del my_dict["celeb"]
+        if my_dict.get("bookings"):
+            del my_dict["bookings"]
 
         return my_dict
 

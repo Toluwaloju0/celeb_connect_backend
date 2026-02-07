@@ -5,8 +5,10 @@ import enum
 from sqlalchemy import String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pydantic import BaseModel
+from typing import List
 
 from .base_model import Base, Basemodel
+from .avalilability_model import Availability
 
 class CelebCreate(BaseModel):
     """ The class to create a new celebrity class """
@@ -16,15 +18,13 @@ class CelebCreate(BaseModel):
     marital_status: str
     profession: str
 
-# class MaritalStatus(str, enum.Enum):
-#     """ enum for the marital status"""
 
 class Celeb(Basemodel, Base):
     """The orm for the celeb_class in the database"""
 
     __tablename__ = "celebs"
 
-    name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
     location: Mapped[str] = mapped_column(String(256), nullable=True)
     profession: Mapped[str] = mapped_column(String(60), nullable=False)
     marital_status: Mapped[str] = mapped_column(String(60), nullable=True)
@@ -34,6 +34,8 @@ class Celeb(Basemodel, Base):
     agent_id: Mapped[str] = mapped_column(String(60), ForeignKey("agents.id"))
 
     agent: Mapped["Agent"] = relationship(back_populates="celebs")
+    availability: Mapped["Availability"] = relationship(back_populates="celeb", cascade="all, delete, delete-orphan")
+    bookings: Mapped[List["Booking"]] = relationship(back_populates="celeb", cascade="all, delete, delete-orphan")
 
     def __init__(self, name: str, location: str, profession: str, marital_status: str | None = None):
         """ the class initializer
@@ -52,3 +54,5 @@ class Celeb(Basemodel, Base):
         self.bio = None
 
         super().__init__()
+
+        self.availability = Availability()

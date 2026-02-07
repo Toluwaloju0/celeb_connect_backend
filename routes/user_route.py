@@ -6,6 +6,9 @@ from typing import Dict
 from argon2.exceptions import VerifyMismatchError
 from pydantic import EmailStr
 
+from models.celebrity_model import Celeb
+from models.booking_model import Booking
+from models.avalilability_model import UserWeekDay
 from utils.responses import api_response
 from utils.check_password import ph, check_password_strength
 from utils.check_email import check_email
@@ -26,7 +29,7 @@ def get_me(user_response = Depends(get_user_from_access_token)):
         return JSONResponse(content.model_dump(), 401)
     
     if not user_response.payload:
-        content - api_response(False, "The Token expired, Refresh the token and try again")
+        content = api_response(False, "The Token expired, Refresh the token and try again")
         return JSONResponse(content.model_dump(), 205)
     
     user = user_response.payload
@@ -43,7 +46,7 @@ def update_password(payload: Dict[str, str] = Body(), user_response = Depends(ge
         return JSONResponse(content.model_dump(), 401)
     
     if not user_response.payload:
-        content - api_response(False, "The Token expired, Refresh the token and try again")
+        content = api_response(False, "The Token expired, Refresh the token and try again")
         return JSONResponse(content.model_dump(), 205)
     
     user, old_password, new_password = user_response.payload, payload.get("old_password"), payload.get("new_password")
@@ -81,7 +84,7 @@ def update_email(payload: Dict[str, EmailStr] = Body(), user_response=Depends(ge
         return JSONResponse(content.model_dump(), 401)
     
     if not user_response.payload:
-        content - api_response(False, "The Token expired, Refresh the token and try again")
+        content = api_response(False, "The Token expired, Refresh the token and try again")
         return JSONResponse(content.model_dump(), 205)
     
     user, new_email = user_response.payload, payload.get("new_email")
@@ -160,3 +163,156 @@ def delete_me(user_response = Depends(get_user_from_access_token)):
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
     return response
+
+@user.get("/agents")
+@user.get("/agents/{agent_id}")
+def get_agents_and_celebs(agent_id: str = None, page:int = 1, limit: int = 10, user_response=Depends(get_user_from_access_token)):
+    """ a module for user to get agents from the database 
+    when agent_id is given the agent along with the agent celebrities are provided
+    Args:
+        agent_id: the agent id for the agent to search for
+    """
+
+    if not user_response.status:
+        content = api_response(False, "The access token is not valid")
+        return JSONResponse(content.model_dump(), 401)
+    
+    if not user_response.payload:
+        content = api_response(False, "The Token expired, Refresh the token and try again")
+        return JSONResponse(content.model_dump(), 205)
+    
+    if not agent_id:
+        # no agent id is given so all the agents are provided for the user
+        page = 0 if page - 1 < 0 else page - 1
+        agents_response = storage.get_agents(page * limit, limit)
+        if not  agents_response.status:
+            content = api_response(False, "No agent found")
+        else:
+            agents = agents_response.payload
+            content = api_response(True, "Agents retrieved successfully", agents)
+        return JSONResponse(content.model_dump())
+    
+    agent_response = storage.get_agent_from_id(agent_id)
+    if not agent_response.status:
+        content = api_response(False, "No agent is found with the provided id")
+        return JSONResponse(content.model_dump())
+    
+    agent = agent_response.payload
+    celeb_list = [celeb.to_dict() for celeb in agent.celebs]
+
+    content = api_response(True, "Agent and celebrities gotten", {"agent": agent.to_dict(), "celebs": celeb_list})
+    return JSONResponse(content.model_dump())
+
+@user.get("/celeb/{celeb_id}/availability")
+def get_celeb_availability(celeb_id:str, user_response = Depends(get_user_from_access_token)):
+    """ an endpoint to get the availablity of a celebrity using the celebrity provided id 
+    Args:
+        celeb_id: the provided celebrity id for the celeb
+        user_response: the user from the access token
+    """
+
+    if not user_response.status:
+        content = api_response(False, "The access token is not valid")
+        return JSONResponse(content.model_dump(), 401)
+    
+    if not user_response.payload:
+        content = api_response(False, "The Token expired, Refresh the token and try again")
+        return JSONResponse(content.model_dump(), 205)
+
+    availability_response = storage.get_celeb_availability(celeb_id)
+    if not availability_response.status:
+        content = api_response(False, "No availability for the selected celebrity")
+    else:
+        content = api_response(True, "Availability gotten successfully", availability_response.payload.to_dict())
+    return JSONResponse(content.model_dump())
+
+@user.post("/{celeb_id}/book")
+def book_a_celeb(celeb_id: str, payload: UserWeekDay, user_response=Depends(get_user_from_access_token)):
+    """ an endpoint to book a celebrity by a user
+    Args:
+        celeb_id: the celebrity id
+    """
+
+    if not user_response.status:
+        content = api_response(False, "The access token is not valid")
+        return JSONResponse(content.model_dump(), 401)
+    
+    if not user_response.payload:
+        content = api_response(False, "The Token expired, Refresh the token and try again")
+        return JSONResponse(content.model_dump(), 205)
+    
+    user = user_response.payload
+
+    celeb_response = storage.get_celeb_by_id(celeb_id)
+    if not celeb_response.status:
+        content = (False, "No celebrity found with the provided id")
+        return JSONResponse(content.model_dump())
+    
+    celeb: Celeb = celeb_response.payload
+
+    celeb.bookings.append(Booking(payload.day ,user.id, payload.type))
+    celeb.save()
+
+    content = api_response(True, "Booking added")
+    return JSONResponse(content.model_dump())
+
+@user.get("/bookings/count")
+def count_all_user_bookings(user_response=Depends(get_user_from_access_token)):
+    """ an endpoint to get the count of bookings a users has submitted along with approved counts and rejected counts
+    Args:
+        user_response: the user from the access token
+    """
+
+    if not user_response.status:
+        content = api_response(False, "The access token is not valid")
+        return JSONResponse(content.model_dump(), 401)
+    
+    if not user_response.payload:
+        content = api_response(False, "The Token expired, Refresh the token and try again")
+        return JSONResponse(content.model_dump(), 205)
+    
+    user = user_response.payload
+    
+    count_response = storage.get_user_bookings_info(user.id)
+    if not count_response.status:
+        content = api_response(False, "The user id is not correct")
+    else:
+        content = api_response(True, "Count gotten", count_response.payload)
+    return JSONResponse(content.model_dump())
+    
+
+@user.get("/bookings")
+@user.get("/bookings/{booking_id}")
+def get_bookings_for_user(booking_id: str = None, page: int = 1, limit: int = 10, user_response=Depends(get_user_from_access_token)):
+    """ an endpoint to get all the bookings of a user and view the booking status
+    Args:
+        booking_id: the booking ticket number for viewing the booking by the user
+        page: the booking page on the front end
+        limit: the amount of data to be viewed by the frontend
+    """
+
+    if not user_response.status:
+        content = api_response(False, "The access token is not valid")
+        return JSONResponse(content.model_dump(), 401)
+    
+    if not user_response.payload:
+        content = api_response(False, "The Token expired, Refresh the token and try again")
+        return JSONResponse(content.model_dump(), 205)
+
+    user = user_response.payload
+
+    page = 0 if page - 1 > 0 else page - 1
+    booking_list_response = storage.get_booking(booking_id, limit, limit * page, user_id=user.id)
+
+    if not booking_list_response.status:
+        content = api_response(False, "No booking is found with the provided number")
+        return JSONResponse(content.model_dump())
+    
+    if not booking_id:
+        bookings = booking_list_response.payload
+        content = api_response(True, "bookings are retrieved successfully", bookings)
+        return JSONResponse(content.model_dump())
+    
+    booking = booking_list_response.payload
+    content = api_response(True, "Booking is retrieved successfully", booking.to_dict())
+    return JSONResponse(content.model_dump())

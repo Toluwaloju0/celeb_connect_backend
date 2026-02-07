@@ -5,6 +5,7 @@ load_dotenv()
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import uvicorn
 
 from routes.auth_route import auth
@@ -43,6 +44,18 @@ app.include_router(auth)
 app.include_router(user)
 app.include_router(admin)
 app.include_router(agent)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    storage.rollback()
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal Server Error",
+            "error": str(exc),  # remove in production
+        },
+    )
+
 
 @app.middleware("http")
 async def after_request_middleware(request: Request, call_next):

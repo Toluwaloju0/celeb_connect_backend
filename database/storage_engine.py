@@ -1,7 +1,7 @@
 """ a module to provide connection to MySql database for user storage and queries """
 
 from os import getenv
-from sqlalchemy import create_engine, select, delete
+from sqlalchemy import create_engine, select, delete, func
 from sqlalchemy.orm import Session
 from argon2.exceptions import VerifyMismatchError
 
@@ -33,6 +33,8 @@ class DBStorage:
         from models.refresh_token_model import RefreshToken, AgentRefresh
         from models.agent_model import Agent
         from models.celebrity_model import Celeb
+        from models.avalilability_model import Availability
+        from models.booking_model import Booking
 
         Base.metadata.create_all(self.__engine)
 
@@ -187,7 +189,7 @@ class DBStorage:
     def get_agents(self, offset: int, limit: int):
         """ a method to get the agent from the agent id provided
         Args:
-            agent_id: the id of the agent or none when i want to get all the agents for the admin
+            agent_id: the id of the agent or none when i want to get all the agents for the admin or users
         """
 
         from models.agent_model import Agent
@@ -294,6 +296,82 @@ class DBStorage:
 
         my_list = [user.to_dict() for user in users]
         return function_response(True, my_list) if len(my_list) > 0 else function_response(False)
+    
+    def get_celeb_availability(self, celeb_id):
+        """a method to get the availabliity of a celebrity
+        Args:
+            celeb_id: the id of the celebrity
+        """
+
+        from models.avalilability_model import Availability
+
+        availability = self.__session.scalars(select(Availability).where(Availability.celeb_id == celeb_id)).one_or_none()
+
+        return function_response(True, availability) if availability else function_response(False)
+    
+    def get_user_bookings_info(self, user_id):
+        """ a method to get the infor of a users bookings including the count of the approved and rejected bookings
+        Args:
+            user_id: the user id of the user
+        """
+
+        from models.booking_model import Booking, Status
+
+        booking_count = self.__session.execute(select(func.count()).select_from(Booking).where(Booking.user_id == user_id)).scalar()
+        successful_booking = self.__session.execute(select(func.count()).select_from(Booking).where(Booking.user_id == user_id).where(Booking.status == Status.APPROVED)).scalar()
+        pending_booking = self.__session.execute(select(func.count()).select_from(Booking).where(Booking.user_id == user_id).where(Booking.status == Status.PENDING)).scalar()
+
+        return function_response(True, {"total": booking_count, "success": successful_booking, "pending": pending_booking})
+    
+    def get_booking(self, booking_id:str = None, limit=10, offset=10, **kwargs):
+        """a method to get the booking from the database for either agent or user
+        Args:
+            booking_id: the booking id to get if none is provided all bookings made by the user or the agent is provided
+            kwargs: the user id or agent id should be present in kwargs
+        """
+
+        from models.booking_model import Booking
+
+        if "user_id" in kwargs.keys():
+            if booking_id:
+                booking = self.__session.scalars(select(Booking).where(Booking.id == booking_id).where(Booking.user_id == kwargs["user_id"])).one_or_none()
+                return function_response(True, booking) if booking else function_response(False)
+            bookings = self.__session.scalars(select(Booking).where(Booking.user_id == kwargs["user_id"]).limit(limit).offset(offset)).all()
+        elif "celeb_id" in kwargs.keys():
+            if booking_id:
+                booking = self.__session.scalars(select(Booking).where(Booking.id == booking_id).where(Booking.celeb_id == kwargs["celeb_id"])).one_or_none()
+                return function_response(True, booking) if booking else function_response(False)
+            bookings = self.__session.scalars(select(Booking).where(Booking.celeb_id == kwargs["celeb_id"]).limit(limit).offset(offset)).all()
+        else:
+            return function_response(False)
+        booking_list = [booking.to_dict() for booking in bookings]
+        return function_response(True, booking_list) if len(booking_list) > 0 else function_response(False)
+    
+    def get_celeb_bookings(self, celeb_id: str, limit: int, offset: int):
+        """ a method to get the bookings of a celeb
+        Args:
+            celeb_id: the celebrity id
+        """
+
+        from models.booking_model import Booking
+
+        if not celeb_id:
+            return function_response(False)
+        
+        bookings = self.__session.scalars(select(Booking).where(Booking.celeb_id == celeb_id).limit(limit).offset(offset))
+
+        my_list = [booking.to_dict() for booking in bookings]
+
+        return function_response(True, my_list) if len(my_list) > 0 else function_response(False)
+    
+    def rollback(self):
+        """
+        Docstring for rollback
+        
+        :param self: Description
+        """
+
+        self.__session.rollback()
 
     def close(self):
         self.__session.flush()
