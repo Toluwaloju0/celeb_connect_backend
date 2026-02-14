@@ -5,3 +5,5 @@ pydantic
 mysqlclient
 sqlalchemy
 argon2-cffi
+requests
+currencyapicom

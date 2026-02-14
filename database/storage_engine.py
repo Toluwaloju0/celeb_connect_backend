@@ -2,14 +2,44 @@
 
 from os import getenv
 from sqlalchemy import create_engine, select, delete, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 from argon2.exceptions import VerifyMismatchError
+from fastapi import Depends
 
 from models.user import User
 from models.refresh_token_model import RefreshToken
 from models.otp_codes_model import OtpCode
 from utils.responses import function_response
 from utils.check_password import ph
+
+DATABASE_URL = (
+    f"mysql+mysqldb://{getenv('DB_USER')}:{getenv('DB_PASSWORD')}"
+    f"@{getenv('DB_HOST')}:{getenv('DB_PORT')}/{getenv('DB_NAME')}"
+)
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,   # IMPORTANT for MySQL
+    pool_recycle=1800
+)
+
+SessionLocal = sessionmaker(
+    bind=engine,
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,
+)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 class DBStorage:
     """ The storage class with a connection to mysql for storage """
@@ -23,7 +53,6 @@ class DBStorage:
         self.__engine = create_engine(f"mysql+mysqldb://{db_user}:{db_pwd}@{db_host}:{db_port}/{db_name}")
         self.__session = Session(bind=self.__engine, expire_on_commit=False)
 
-
     def create_tables(self):
         """ A method to create the database tabless """
 
@@ -36,7 +65,7 @@ class DBStorage:
         from models.avalilability_model import Availability
         from models.booking_model import Booking
 
-        Base.metadata.create_all(self.__engine)
+        Base.metadata.create_all(engine)
 
     def save(self, obj):
         """ a method to save the objects to the database """
@@ -347,6 +376,18 @@ class DBStorage:
         booking_list = [booking.to_dict() for booking in bookings]
         return function_response(True, booking_list) if len(booking_list) > 0 else function_response(False)
     
+    def get_booking_by_id(self, booking_id):
+        """ a method to get the booking for an admin to approve
+        Args:
+            booking_id: the booking id to search for
+        """
+
+        from  models.booking_model import Booking
+
+        booking = self.__session.scalars(select(Booking).where(Booking.id == booking_id)).one_or_none()
+
+        return function_response(True, booking) if booking else function_response(False)
+    
     def get_celeb_bookings(self, celeb_id: str, limit: int, offset: int):
         """ a method to get the bookings of a celeb
         Args:
@@ -378,5 +419,10 @@ class DBStorage:
 
         self.__session.close()
 
+# def get_storage(db=Depends(get_db)):
+#     return DBStorage(db)
+
+
+# storage: DBStorage = Depends(get_storage)
+
 storage = DBStorage()
-storage.create_tables()

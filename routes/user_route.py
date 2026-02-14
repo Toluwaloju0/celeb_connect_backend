@@ -12,8 +12,9 @@ from models.avalilability_model import UserWeekDay
 from utils.responses import api_response
 from utils.check_password import ph, check_password_strength
 from utils.check_email import check_email
+from utils.booking_price import price_converter
 from middlewares.get_user_from_cookies import get_user_from_access_token
-from database.storage_engine import storage
+from database.storage_engine import DBStorage, storage
 
 user = APIRouter(prefix="/user", tags=["Users"], dependencies=[Depends(get_user_from_access_token)])
 
@@ -314,5 +315,10 @@ def get_bookings_for_user(booking_id: str = None, page: int = 1, limit: int = 10
         return JSONResponse(content.model_dump())
     
     booking = booking_list_response.payload
-    content = api_response(True, "Booking is retrieved successfully", booking.to_dict())
+
+    booking_dict = booking.to_dict()
+
+    booking_dict["price"] = price_converter(booking.type)
+
+    content = api_response(True, "Booking is retrieved successfully", booking_dict)
     return JSONResponse(content.model_dump())

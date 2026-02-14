@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, Body, UploadFile, File
 from fastapi.responses import JSONResponse
 from typing import Dict
 
-from database.storage_engine import storage
+from database.storage_engine import DBStorage, storage
 from models.agent_model import AgentCreate, Agent, UpdateAgentTier
 from models.admin_model import Admin
+from models.booking_model import BookingStatus, Status
 from models.user import UpdateUserLevel
 from utils.responses import api_response
 from utils.check_email import check_email
@@ -336,4 +337,66 @@ def update_user_level(user_id: str, payload: UpdateUserLevel, get_admin_response
 
     user.save()
     content = api_response(True, "The users level has been updated successfully", user.to_dict())
+    return JSONResponse(content.model_dump())
+
+@admin.get("/bookings/{booking_id}")
+def get_booking_for_admin(booking_id: str, get_admin_response=Depends(get_admin_from_access_token)):
+    """ an endpoint to get a booking based on the provided booking id
+    Args:
+        booking_id: the booking id to search for
+        get_admin_response: the admin from the access token
+    """
+
+    if not get_admin_response.status:
+        content = api_response(False, "The user is not allowed to use this route")
+        return JSONResponse(content.model_dump(), 401)
+    
+    if not get_admin_response.payload:
+        content = api_response(False, "The access token is expired refresh to use the application")
+        return JSONResponse(content.model_dump(), 205)
+    
+    booking_response = storage.get_booking_by_id(booking_id)
+    if not booking_response.status:
+        content = api_response(False, "No booking is found for the provided id")
+    else:
+        booking = booking_response.payload
+        content = api_response(True, "Booking successfully retrieved", booking.to_dict())
+    return JSONResponse(content.model_dump())
+
+@admin.patch("/bookings/{booking_id}")
+def update_booking_to_approved(booking_id: str, payload: BookingStatus, get_admin_response=Depends(get_admin_from_access_token)):
+    """ a method to update the booking status to paid by the admin
+    Args:
+        booking_id: the booking id to update
+        payload: the new status
+        get_admin_response: the admin from the access token
+    """
+
+    if not get_admin_response.status:
+        content = api_response(False, "The user is not allowed to use this route")
+        return JSONResponse(content.model_dump(), 401)
+    
+    if not get_admin_response.payload:
+        content = api_response(False, "The access token is expired refresh to use the application")
+        return JSONResponse(content.model_dump(), 205)
+    
+    booking_response = storage.get_booking_by_id(booking_id)
+    if not booking_response.status:
+        content = api_response(False, "The booking is not found")
+        return JSONResponse(content.model_dump())
+    
+    if payload.status != Status.PAID:
+        content = api_response(False, "The admin is only allowed to confirm payment of the booking")
+        return JSONResponse(content.model_dump())
+    
+    booking = booking_response.payload
+
+    if booking.status != Status.PENDING:
+        content = api_response(False, "The booking is no longer pending")
+        return JSONResponse(content.model_dump())
+    
+    booking.status = Status.PAID
+    booking.save()
+
+    content = api_response(True, "The booking has been paid for", booking.to_dict())
     return JSONResponse(content.model_dump())

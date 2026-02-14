@@ -19,7 +19,7 @@ class EmailSender:
         """ the class initializer"""
 
         self.__sender = smtplib.SMTP("smtp.gmail.com", 587)
-        # self.__sender.starttls()
+        self.__sender.starttls()
         account = getenv("GOOGLE_ACCOUNT")
         password = getenv("GOOGLE_PASSWORD")
 

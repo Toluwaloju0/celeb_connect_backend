@@ -9,7 +9,7 @@ from models.agent_model import Agent
 from models.celebrity_model import CelebCreate, Celeb
 from models.avalilability_model import AgentWeekDay
 from models.booking_model import BookingStatus, Status
-from database.storage_engine import storage
+from database.storage_engine import DBStorage, storage
 from middlewares.agent_access_token import verify_agent_access_token
 from utils.responses import api_response
 from utils.check_password import ph, check_password_strength
@@ -314,8 +314,8 @@ def update_celeb_booking(celeb_id: str, booking_id: str, payload: BookingStatus,
     if not booking_response.status:
         content = api_response(False, "This booking is not found for the celeb")
         return JSONResponse(content.model_dump)
-
-    if payload.status != Status.APPROVED or payload != Status.CANCELLED:
+    
+    if payload.status != Status.APPROVED and payload.status != Status.CANCELLED:
         content = api_response(False, "The agent can only approve or cancel bookings")
         return JSONResponse(content.model_dump())
     
