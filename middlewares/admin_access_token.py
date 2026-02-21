@@ -12,4 +12,4 @@ def get_admin_from_access_token(request: Request):
     """
 
     access_token = request.cookies.get("access_token")
-    return token_manager.verify_admin_access_token(access_token)
+    return token_manager.verify_admin_access_token(access_token, request.state.storage)

@@ -21,7 +21,7 @@ class Weekday(str, enum.Enum):
 
     Mo = "MONDAY"
     Tu = "TUESDAY"
-    We = "WEDNESSDAY"
+    We = "WEDNESDAY"
     Th = "THURSDAY"
     Fr = "FRIDAY"
 
@@ -45,7 +45,7 @@ class Availability(Basemodel, Base):
     celeb_id: Mapped[str] = mapped_column(String(60), ForeignKey("celebs.id"))
     monday: Mapped[bool] = mapped_column(Boolean, default=True)
     tuesday: Mapped[bool] = mapped_column(Boolean, default=True)
-    wednessday: Mapped[bool] = mapped_column(Boolean, default=True)
+    wednesday: Mapped[bool] = mapped_column(Boolean, default=True)
     thursday: Mapped[bool] = mapped_column(Boolean, default=True)
     friday: Mapped[bool] = mapped_column(Boolean, default=True)
     

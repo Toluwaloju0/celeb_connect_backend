@@ -2,11 +2,6 @@
 
 import requests as re
 import os
-import currencyapicom
-from forex_python.bitcoin import BtcConverter
-import dotenv
-
-api_key = os.getenv("CURRENCY_API_KEY")
 
 booking_prices = {
     "One-Time": 4372,

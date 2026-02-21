@@ -7,7 +7,7 @@ from email.message import EmailMessage
 from datetime import datetime
 
 from models.otp_codes_model import OtpCode
-from database.storage_engine import storage
+from database.storage_engine import DBStorage
 from utils.create_otp_code import create_otp
 from utils.responses import function_response
 from utils.id_string import uuid
@@ -25,7 +25,7 @@ class EmailSender:
 
         self.__sender.login(account, password)
 
-    def send_otp_code(self, email_address: str):
+    def send_otp_code(self, email_address: str, storage: DBStorage):
         """ a method to send otp codes to the provided email address and save the sent otp code to the database
         Args:
             email_address (str): the email address of the user
@@ -44,7 +44,7 @@ class EmailSender:
             otp_code_object.count += 1
         else:
             otp_code_object = OtpCode(email_address, otp_code)
-        otp_code_object.save()
+        otp_code_object.save(storage)
 
         # send the email to the user
         message = EmailMessage()

@@ -3,6 +3,7 @@
 from datetime import datetime
 from sqlalchemy import String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from database.storage_engine import DBStorage
 
 from utils.id_string import uuid
 
@@ -52,13 +53,13 @@ class Basemodel:
             del my_dict["celeb"]
         if my_dict.get("bookings"):
             del my_dict["bookings"]
+        if my_dict.get("user"):
+            del my_dict["user"]
 
         return my_dict
 
-    def save(self):
+    def save(self, storage: DBStorage = None):
         """A method to save the class to the database"""
-
-        from database.storage_engine import storage
 
         storage.save(self)
         return "saved"
@@ -68,10 +69,8 @@ class Basemodel:
 
         return f"{self.to_dict()}"
     
-    def delete(self):
+    def delete(self, storage):
         """ a method to delete a user from the database and delete the user object"""
-
-        from database.storage_engine import storage
 
         storage.delete(self)
         return "deleted"

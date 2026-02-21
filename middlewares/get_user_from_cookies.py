@@ -9,6 +9,6 @@ def get_user_from_access_token(request: Request):
 
     access_token = request.cookies.get("access_token")
 
-    verify_token_response = token_manager.verify_access_token(access_token)
+    verify_token_response = token_manager.verify_access_token(access_token, request.state.storage)
 
     return verify_token_response

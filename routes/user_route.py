@@ -1,6 +1,6 @@
 """ a module to define user routes """
 
-from fastapi import Depends, APIRouter, Body
+from fastapi import Depends, APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 from typing import Dict
 from argon2.exceptions import VerifyMismatchError
@@ -14,12 +14,12 @@ from utils.check_password import ph, check_password_strength
 from utils.check_email import check_email
 from utils.booking_price import price_converter
 from middlewares.get_user_from_cookies import get_user_from_access_token
-from database.storage_engine import DBStorage, storage
+from database.storage_engine import DBStorage
 
 user = APIRouter(prefix="/user", tags=["Users"], dependencies=[Depends(get_user_from_access_token)])
 
 @user.get("/me")
-def get_me(user_response = Depends(get_user_from_access_token)):
+async def get_me(user_response = Depends(get_user_from_access_token)):
     """ a endpoint to get the user object from the database
     Args:
         user_response: the response gotten from the access token
@@ -39,8 +39,10 @@ def get_me(user_response = Depends(get_user_from_access_token)):
     return JSONResponse(content.model_dump  ())
 
 @user.patch("/me/password")
-def update_password(payload: Dict[str, str] = Body(), user_response = Depends(get_user_from_access_token)):
+async def update_password(request: Request, payload: Dict[str, str] = Body(), user_response = Depends(get_user_from_access_token)):
     """ a endpoint to update the user password """
+
+    storage: DBStorage = request.state.storage
 
     if not user_response.status:
         content = api_response(False, "The access token is not valid")
@@ -71,14 +73,16 @@ def update_password(payload: Dict[str, str] = Body(), user_response = Depends(ge
         return JSONResponse(content.model_dump(), 500)
     
     user.password = ph.hash(new_password)
-    user.save()
+    user.save(storage)
 
     content = api_response(True, "The user password has been updated", user.to_dict())
     return JSONResponse(content.model_dump())
 
 @user.patch("/me/email")
-def update_email(payload: Dict[str, EmailStr] = Body(), user_response=Depends(get_user_from_access_token)):
+async def update_email(request: Request, payload: Dict[str, EmailStr] = Body(), user_response=Depends(get_user_from_access_token)):
     """The endpoint to update the user email address """
+
+    storage: DBStorage = request.state.storage
 
     if not user_response.status:
         content = api_response(False, "The access token is not valid")
@@ -101,14 +105,16 @@ def update_email(payload: Dict[str, EmailStr] = Body(), user_response=Depends(ge
     
     user.email = new_email
     user.is_verified = False
-    user.save()
+    user.save(storage)
 
     content = api_response(True, "The user email has been updated successfully", user.to_dict())
     return JSONResponse(content.model_dump())
 
 @user.put("/me/update")
-def update_me(payload: Dict[str, str] = Body(), user_response = Depends(get_user_from_access_token)):
+async def update_me(request: Request, payload: Dict[str, str] = Body(), user_response = Depends(get_user_from_access_token)):
     """ an endpoint to update a user instance by changing the name or phone number"""
+
+    storage: DBStorage = request.state.storage
 
     if not user_response.status:
         content = api_response(False, "The access token is not valid")
@@ -137,15 +143,17 @@ def update_me(payload: Dict[str, str] = Body(), user_response = Depends(get_user
         user.phone_number = phone_number
 
     if update:
-        user.save()
+        user.save(storage)
         content = api_response(True, "The user has been updated successfully", user.to_dict())
     else:
         content = api_response(True, "Nothing was updated", user.to_dict())
     return JSONResponse(content.model_dump())
 
 @user.delete("/me")
-def delete_me(user_response = Depends(get_user_from_access_token)):
+async def delete_me(request: Request, user_response = Depends(get_user_from_access_token)):
     """ an endpoint to allow the user to delete the account from the database"""
+
+    storage: DBStorage = request.state.storage
 
     if not user_response.status:
         content = api_response(False, "The access token is not valid")
@@ -157,7 +165,7 @@ def delete_me(user_response = Depends(get_user_from_access_token)):
     
     user = user_response.payload
 
-    user.delete()
+    user.delete(storage)
 
     content = api_response(True, "The user has been deleted")
     response = JSONResponse(content.model_dump())
@@ -167,12 +175,14 @@ def delete_me(user_response = Depends(get_user_from_access_token)):
 
 @user.get("/agents")
 @user.get("/agents/{agent_id}")
-def get_agents_and_celebs(agent_id: str = None, page:int = 1, limit: int = 10, user_response=Depends(get_user_from_access_token)):
+async def get_agents_and_celebs(request: Request, agent_id: str = None, page:int = 1, limit: int = 10, user_response=Depends(get_user_from_access_token)):
     """ a module for user to get agents from the database 
     when agent_id is given the agent along with the agent celebrities are provided
     Args:
         agent_id: the agent id for the agent to search for
     """
+
+    storage: DBStorage = request.state.storage
 
     if not user_response.status:
         content = api_response(False, "The access token is not valid")
@@ -205,12 +215,14 @@ def get_agents_and_celebs(agent_id: str = None, page:int = 1, limit: int = 10, u
     return JSONResponse(content.model_dump())
 
 @user.get("/celeb/{celeb_id}/availability")
-def get_celeb_availability(celeb_id:str, user_response = Depends(get_user_from_access_token)):
+async def get_celeb_availability(celeb_id:str, request: Request, user_response = Depends(get_user_from_access_token)):
     """ an endpoint to get the availablity of a celebrity using the celebrity provided id 
     Args:
         celeb_id: the provided celebrity id for the celeb
         user_response: the user from the access token
     """
+
+    storage: DBStorage = request.state.storage
 
     if not user_response.status:
         content = api_response(False, "The access token is not valid")
@@ -228,11 +240,13 @@ def get_celeb_availability(celeb_id:str, user_response = Depends(get_user_from_a
     return JSONResponse(content.model_dump())
 
 @user.post("/{celeb_id}/book")
-def book_a_celeb(celeb_id: str, payload: UserWeekDay, user_response=Depends(get_user_from_access_token)):
+async def book_a_celeb(celeb_id: str, payload: UserWeekDay, request: Request, user_response=Depends(get_user_from_access_token)):
     """ an endpoint to book a celebrity by a user
     Args:
         celeb_id: the celebrity id
     """
+
+    storage: DBStorage = request.state.storage
 
     if not user_response.status:
         content = api_response(False, "The access token is not valid")
@@ -252,17 +266,19 @@ def book_a_celeb(celeb_id: str, payload: UserWeekDay, user_response=Depends(get_
     celeb: Celeb = celeb_response.payload
 
     celeb.bookings.append(Booking(payload.day ,user.id, payload.type))
-    celeb.save()
+    celeb.save(storage)
 
     content = api_response(True, "Booking added")
     return JSONResponse(content.model_dump())
 
 @user.get("/bookings/count")
-def count_all_user_bookings(user_response=Depends(get_user_from_access_token)):
+async def count_all_user_bookings(request: Request, user_response=Depends(get_user_from_access_token)):
     """ an endpoint to get the count of bookings a users has submitted along with approved counts and rejected counts
     Args:
         user_response: the user from the access token
     """
+
+    storage: DBStorage = request.state.storage
 
     if not user_response.status:
         content = api_response(False, "The access token is not valid")
@@ -284,13 +300,15 @@ def count_all_user_bookings(user_response=Depends(get_user_from_access_token)):
 
 @user.get("/bookings")
 @user.get("/bookings/{booking_id}")
-def get_bookings_for_user(booking_id: str = None, page: int = 1, limit: int = 10, user_response=Depends(get_user_from_access_token)):
+async def get_bookings_for_user(request: Request, booking_id: str = None, page: int = 1, limit: int = 10, user_response=Depends(get_user_from_access_token)):
     """ an endpoint to get all the bookings of a user and view the booking status
     Args:
         booking_id: the booking ticket number for viewing the booking by the user
         page: the booking page on the front end
         limit: the amount of data to be viewed by the frontend
     """
+
+    storage: DBStorage = request.state.storage
 
     if not user_response.status:
         content = api_response(False, "The access token is not valid")

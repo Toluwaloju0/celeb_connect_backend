@@ -2,70 +2,20 @@
 
 from os import getenv
 from sqlalchemy import create_engine, select, delete, func
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
 from argon2.exceptions import VerifyMismatchError
 from fastapi import Depends
 
-from models.user import User
-from models.refresh_token_model import RefreshToken
-from models.otp_codes_model import OtpCode
 from utils.responses import function_response
 from utils.check_password import ph
-
-DATABASE_URL = (
-    f"mysql+mysqldb://{getenv('DB_USER')}:{getenv('DB_PASSWORD')}"
-    f"@{getenv('DB_HOST')}:{getenv('DB_PORT')}/{getenv('DB_NAME')}"
-)
-
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,   # IMPORTANT for MySQL
-    pool_recycle=1800
-)
-
-SessionLocal = sessionmaker(
-    bind=engine,
-    autocommit=False,
-    autoflush=False,
-    expire_on_commit=False,
-)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
 
 class DBStorage:
     """ The storage class with a connection to mysql for storage """
 
-    def __init__(self):
+    def __init__(self, session: Session):
         """ a method to create the database connection string """
 
-        db_name, db_host, db_pwd = getenv("DB_NAME"), getenv("DB_HOST"), getenv("DB_PASSWORD")
-        db_port, db_user = getenv("DB_PORT"), getenv("DB_USER")
-
-        self.__engine = create_engine(f"mysql+mysqldb://{db_user}:{db_pwd}@{db_host}:{db_port}/{db_name}")
-        self.__session = Session(bind=self.__engine, expire_on_commit=False)
-
-    def create_tables(self):
-        """ A method to create the database tabless """
-
-        from models.base_model import Base
-        from models.user import User
-        from models.otp_codes_model import OtpCode
-        from models.refresh_token_model import RefreshToken, AgentRefresh
-        from models.agent_model import Agent
-        from models.celebrity_model import Celeb
-        from models.avalilability_model import Availability
-        from models.booking_model import Booking
-
-        Base.metadata.create_all(engine)
+        self.__session = session
 
     def save(self, obj):
         """ a method to save the objects to the database """
@@ -92,6 +42,8 @@ class DBStorage:
     def get_user_by_id(self, user_id: str):
         """ a method to get the user using the provided user id"""
 
+        from models.user import User
+
         user = self.__session.scalars(select(User).where(User.id == user_id)).one_or_none()
 
         return function_response(True, user) if user else function_response(False)
@@ -104,6 +56,9 @@ class DBStorage:
             token (str): the token to be saved
         """
 
+        from models.refresh_token_model import RefreshToken
+
+
         token_object = self.__session.scalars(select(RefreshToken).where(RefreshToken.id == token)).one_or_none()
         if token_object:
             return function_response(True, token_object)
@@ -115,6 +70,9 @@ class DBStorage:
             email_address (str): the email address containing the otp code
         Return the otp object along with the response
         """
+
+        from models.otp_codes_model import OtpCode
+
 
         otp_object = self.__session.scalars(select(OtpCode).where(OtpCode.email == email_address)).one_or_none()
         if not otp_object:
@@ -134,12 +92,15 @@ class DBStorage:
         Return the otp object found with the provided code
         """
 
+        from models.otp_codes_model import OtpCode
+
+
         otp_object = self.__session.scalars(select(OtpCode).where(OtpCode.code == code)).one_or_none()
         if otp_object:
             return function_response(True, otp_object)
         return function_response(False)
     
-    def get_admin_from_email(self, email, password = None):
+    def get_admin_from_email(self, email, password):
         """ a method to get the admin from the database using the email address
         Args:
             email: the email of the admin in the database
@@ -418,11 +379,3 @@ class DBStorage:
         self.__session.flush()
 
         self.__session.close()
-
-# def get_storage(db=Depends(get_db)):
-#     return DBStorage(db)
-
-
-# storage: DBStorage = Depends(get_storage)
-
-storage = DBStorage()

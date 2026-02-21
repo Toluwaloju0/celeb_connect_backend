@@ -1,7 +1,5 @@
 """ a module to create the celebrity model for login and database saving """
 
-import enum
-
 from sqlalchemy import String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pydantic import BaseModel

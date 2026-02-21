@@ -9,6 +9,6 @@ def verify_agent_access_token(request: Request):
 
     access_token = request.cookies.get("access_token")
 
-    get_agent_response = token_manager.verify_agent_access_token(access_token)
+    get_agent_response = token_manager.verify_agent_access_token(access_token, request.state.storage)
 
     return get_agent_response

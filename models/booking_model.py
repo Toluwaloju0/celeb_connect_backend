@@ -4,7 +4,6 @@ import enum
 
 from sqlalchemy import String, ForeignKey, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import List
 from pydantic import BaseModel
 
 from .base_model import Base, Basemodel
@@ -40,6 +39,7 @@ class Booking(Basemodel, Base):
     type: Mapped[Type] = mapped_column(Enum(Type), nullable=False)
 
     celeb: Mapped["Celeb"] = relationship(back_populates="bookings")
+    user: Mapped["User"] = relationship(back_populates="bookings")
 
     def __init__(self, day: Weekday, user_id, type: Type):
         """ the class initializer """

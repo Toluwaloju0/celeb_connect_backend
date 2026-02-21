@@ -1,7 +1,7 @@
 """ a module to define the agent route """
 
 from argon2.exceptions import VerifyMismatchError
-from fastapi import APIRouter, Depends, Body, UploadFile, File
+from fastapi import APIRouter, Depends, Body, UploadFile, File, Request
 from fastapi.responses import JSONResponse
 from typing import Dict, Optional
 
@@ -9,7 +9,7 @@ from models.agent_model import Agent
 from models.celebrity_model import CelebCreate, Celeb
 from models.avalilability_model import AgentWeekDay
 from models.booking_model import BookingStatus, Status
-from database.storage_engine import DBStorage, storage
+from database.storage_engine import DBStorage
 from middlewares.agent_access_token import verify_agent_access_token
 from utils.responses import api_response
 from utils.check_password import ph, check_password_strength
@@ -18,7 +18,7 @@ from services.file_management import file_manager
 agent = APIRouter(prefix="/agent", tags=["Agents"], dependencies=[Depends(verify_agent_access_token)])
 
 @agent.patch("/profile/password")
-def update_password(payload: Dict[str, str] = Body(), get_agent_response = Depends(verify_agent_access_token)):
+async def update_password(request: Request, payload: Dict[str, str]=Body(), get_agent_response = Depends(verify_agent_access_token)):
     """ an endpoint to get a new agent password and update the agent password
     This would also verify the agents email address
     
@@ -54,13 +54,13 @@ def update_password(payload: Dict[str, str] = Body(), get_agent_response = Depen
     
     agent.password = ph.hash(new_password)
     agent.email_verified = True
-    agent.save()
+    agent.save(request.state.storage)
 
     content = api_response(True, "Password update successful", agent.to_dict())
     return JSONResponse(content.model_dump())
 
 @agent.put("/celeb/add")
-def add_celebrity(celeb: CelebCreate, get_agent_response = Depends(verify_agent_access_token)):
+async def add_celebrity(celeb: CelebCreate, request: Request, get_agent_response = Depends(verify_agent_access_token)):
     """ an endpoint to add a new celeb to the database for this agent """
 
     if not get_agent_response.status:
@@ -74,7 +74,7 @@ def add_celebrity(celeb: CelebCreate, get_agent_response = Depends(verify_agent_
     agent: Agent = get_agent_response.payload
 
     agent.celebs.append(Celeb(celeb.name, celeb.location, celeb.profession, celeb.marital_status))
-    agent.save()
+    agent.save(request.state.storage)
 
     celeb = agent.celebs[-1]
 
@@ -83,14 +83,14 @@ def add_celebrity(celeb: CelebCreate, get_agent_response = Depends(verify_agent_
 
 @agent.get("/celebs")
 @agent.get("/celebs/{celeb_id}")
-def get_celebrity(celeb_id: Optional[str] = None, page: int = 1, offset: int = 10, limit: int = 10, get_agent_response = Depends(verify_agent_access_token)):
+async def get_celebrity(request: Request, celeb_id: Optional[str] = None, page: int = 1, limit: int = 10, get_agent_response = Depends(verify_agent_access_token)):
     """ a method to get a celebrity infrmation if an celeb_id is given
     else all the celebs of the agents are provided
     Args:
         celeb_id (str): the celeb_id of the celebrity if given
         get_agent_response: the agent in a response
     """
-
+    storage: DBStorage = request.state.storage
     
     if not get_agent_response.status:
         content = api_response(False, "The user is not allowed to visit this route")
@@ -104,7 +104,7 @@ def get_celebrity(celeb_id: Optional[str] = None, page: int = 1, offset: int = 1
 
     # get the celebrities from the database using the required offset and limit
     page = page - 1 if page - 1 > 0 else 0
-    celeb_response = storage.get_celebrities(agent.id, limit, offset * page, celeb_id)
+    celeb_response = storage.get_celebrities(agent.id, limit, limit * page, celeb_id)
     if not celeb_response.status:
         content = api_response(False, "No celebrity is found")
     else:
@@ -112,13 +112,15 @@ def get_celebrity(celeb_id: Optional[str] = None, page: int = 1, offset: int = 1
     return JSONResponse(content.model_dump())
 
 @agent.put("/celeb/{celeb_id}/profile/picture")
-def add_profile_image(celeb_id: str, file: UploadFile = File(), get_agent_response = Depends(verify_agent_access_token)):
+async def add_profile_image(celeb_id: str, request: Request, file: UploadFile = File(), get_agent_response = Depends(verify_agent_access_token)):
     """ a method to set the celebrity image by the server and save the location to the database
     Args:
         celeb_id (str): the celebrity id
         file: the picture file
         get_agent_response: the agent from the database
     """
+
+    storage: DBStorage = request.state.storage
 
     if not get_agent_response.status:
         content = api_response(False, "The user is not allowed to visit this route")
@@ -151,13 +153,13 @@ def add_profile_image(celeb_id: str, file: UploadFile = File(), get_agent_respon
         file_manager.delete_celeb_file(celeb.profile_url)
 
     celeb.profile_url = file_location
-    celeb.save()
+    celeb.save(storage)
 
     content = api_response(True, "The upload is successful", celeb.to_dict())
     return JSONResponse(content.model_dump())
 
 @agent.patch("/celeb/{celeb_id}/profile")
-def update_celeb_info(celeb_id: str, payload: Dict[str, str] = Body(), get_agent_response = Depends(verify_agent_access_token)):
+async def update_celeb_info(celeb_id: str, request: Request, payload: Dict[str, str] = Body(), get_agent_response = Depends(verify_agent_access_token)):
     """ an endpoint to update the celebrity informations
     Args:
         celeb_id: the celebrity id
@@ -165,7 +167,8 @@ def update_celeb_info(celeb_id: str, payload: Dict[str, str] = Body(), get_agent
         get_agent_response: the agent making the update
     """
 
-    
+    storage: DBStorage
+
     if not get_agent_response.status:
         content = api_response(False, "The user is not allowed to visit this route")
         return JSONResponse(content.model_dump(), 401)
@@ -190,19 +193,21 @@ def update_celeb_info(celeb_id: str, payload: Dict[str, str] = Body(), get_agent
         celeb.name = name
         update = True
     if update:
-        celeb.save()
+        celeb.save(storage)
         content = api_response(True, "Celebrity information updated successfully", celeb.to_dict())
     else:
         content = api_response(False, "No information to update", celeb.to_dict())
     return JSONResponse(content.model_dump())
 
 @agent.get("/celeb/{celeb_id}/availability")
-def get_celeb_availability(celeb_id: str, get_agent_response = Depends(verify_agent_access_token)):
+async def get_celeb_availability(celeb_id: str, request: Request, get_agent_response = Depends(verify_agent_access_token)):
     """an endpoint to get a celeb availability
     Args:
         celeb_id(str): the celebrity id
         get_agent_response: the agent from the access token
     """
+
+    storage: DBStorage = request.state.storage
 
     if not get_agent_response.status:
         content = api_response(False, "The user is not allowed to visit this route")
@@ -221,13 +226,15 @@ def get_celeb_availability(celeb_id: str, get_agent_response = Depends(verify_ag
     return JSONResponse(content.model_dump())
 
 @agent.patch("/celeb/{celeb_id}/availability")
-def update_celeb_availability(celeb_id: str, payload: AgentWeekDay, get_agent_response = Depends(verify_agent_access_token)):
+async def update_celeb_availability(celeb_id: str, payload: AgentWeekDay, request: Request, get_agent_response=Depends(verify_agent_access_token)):
     """an endpoint to set the availability of a celeb
     Args:
         celeb_id: the id of the celebrity
         payload: a list of the approved days
         get_agent_response: the agent response from the access token
     """
+
+    storage: DBStorage = request.state.storage
 
     if not get_agent_response.status:
         content = api_response(False, "The user is not allowed to visit this route")
@@ -241,7 +248,7 @@ def update_celeb_availability(celeb_id: str, payload: AgentWeekDay, get_agent_re
     if not availability_response.status:
         content = api_response(False, "no availiability is found for the selected celebrity")
         return JSONResponse(content.model_dump())
-    
+
     availability = availability_response.payload
     if "MONDAY" not in payload.days:
         availability.monday = False
@@ -251,10 +258,10 @@ def update_celeb_availability(celeb_id: str, payload: AgentWeekDay, get_agent_re
         availability.tuesday = False
     else:
         availability.tuesday = True
-    if "WEDNESSDAY" not in payload.days:
-        availability.wednessday = False
+    if "WEDNESDAY" not in payload.days:
+        availability.wednesday = False
     else:
-        availability.wednessday = True
+        availability.wednesday = True
     if "THURSDAY" not in payload.days:
         availability.thursday = False
     else:
@@ -264,16 +271,18 @@ def update_celeb_availability(celeb_id: str, payload: AgentWeekDay, get_agent_re
     else:
         availability.friday = True
 
-    availability.save()
+    availability.save(storage)
     content = api_response(True, "Celebrity availability has been updated successfully", availability.to_dict())
     return JSONResponse(content.model_dump())
 
 @agent.get("/celeb/{celeb_id}/bookings")
-def get_celeb_bookings(celeb_id: str, page: int = 1, limit:int = 10, get_agent_response = Depends(verify_agent_access_token)):
+async def get_celeb_bookings(celeb_id: str, request: Request, page: int = 1, limit:int = 10, get_agent_response = Depends(verify_agent_access_token)):
     """an endpoint to get all the bookings of a celebrity
     Args:
         celeb_id: the celebrity id of which to get the booking
     """
+
+    storage: DBStorage = request.state.storage
 
     if not get_agent_response.status:
         content = api_response(False, "The user is not allowed to visit this route")
@@ -294,13 +303,15 @@ def get_celeb_bookings(celeb_id: str, page: int = 1, limit:int = 10, get_agent_r
     return JSONResponse(content.model_dump())
 
 @agent.patch("/celeb/{celeb_id}/bookings/{booking_id}")
-def update_celeb_booking(celeb_id: str, booking_id: str, payload: BookingStatus, get_agent_response=Depends(verify_agent_access_token)):
+async def update_celeb_booking(celeb_id: str, booking_id: str, payload: BookingStatus, request: Request, get_agent_response=Depends(verify_agent_access_token)):
     """ an endpoint to update the status of a booking
     Args:
         celeb_id: the celebrity id
         booking_id: the booking to be affected
         payload: the new update
     """
+
+    storage: DBStorage = request.state.storage
 
     if not get_agent_response.status:
         content = api_response(False, "The user is not allowed to visit this route")
@@ -321,7 +332,7 @@ def update_celeb_booking(celeb_id: str, booking_id: str, payload: BookingStatus,
     
     booking = booking_response.payload
     booking.status = payload.status
-    booking.save()
+    booking.save(storage)
 
     content = api_response(True, "Booking info has been updated successfully", booking.to_dict())
     return JSONResponse(content.model_dump())

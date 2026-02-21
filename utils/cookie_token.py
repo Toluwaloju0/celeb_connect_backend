@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from models.refresh_token_model import RefreshToken, AgentRefresh
 from utils.responses import function_response
-from database.storage_engine import storage
+from database.storage_engine import DBStorage
 
 class Token:
     """The token class for all my token activities"""
@@ -30,7 +30,7 @@ class Token:
 
         return function_response(True, {"access_token": token})
     
-    def verify_access_token(self, access_token):
+    def verify_access_token(self, access_token, storage: DBStorage):
         """
         a method to verify the access token
         Args:
@@ -49,7 +49,7 @@ class Token:
         except jwt.ExpiredSignatureError:
             return function_response(True)
         
-    def create_refresh_token(self, user_id: str):
+    def create_refresh_token(self, user_id: str, storage: DBStorage):
         """ a method to create the refresh token
         Args:
             email: the email associated with the token
@@ -57,13 +57,10 @@ class Token:
 
         # create the refresh token class before saving it to the database
         refresh_object = RefreshToken(user_id)
-        refresh_object.save()
-        # if save_token_response.status:
-        #     return function_response(True, {"refresh_token": token})
-        # return save_token_response
+        refresh_object.save(storage)
         return function_response(True, {"refresh_token": refresh_object.id})
     
-    def verify_refresh_token(self, refresh_id: str):
+    def verify_refresh_token(self, refresh_id: str, storage: DBStorage):
         """ a method to verify the refresh token passed to the user
         Args:
             token (str): the token to be used to refresh the user status
@@ -73,7 +70,7 @@ class Token:
         user_id_response = storage.get_refresh_token(refresh_id)
         return user_id_response
     
-    def verify_admin_access_token(self, access_token: str):
+    def verify_admin_access_token(self, access_token: str, storage: DBStorage):
         """ a method to verify the admin access token
         Args:
             access_token (str): the access token to be verified
@@ -96,7 +93,7 @@ class Token:
         except jwt.ExpiredSignatureError:
             return function_response(True)
         
-    def verify_agent_access_token(self, access_token: str):
+    def verify_agent_access_token(self, access_token: str, storage: DBStorage):
         """ a method to verify the agents access token and ensure that the agent is valid
         Args:
             access_token (str): the access token of the agent
@@ -114,7 +111,7 @@ class Token:
         except jwt.ExpiredSignatureError:
             return function_response(True)
         
-    def create_agent_refresh(self, agent_id):
+    def create_agent_refresh(self, agent_id, storage: DBStorage):
         """ a method to create the refresh token for the agent id"""
 
         from models.refresh_token_model import AgentRefresh
@@ -123,13 +120,13 @@ class Token:
 
         try:
             refresh_token = AgentRefresh(agent_id)
-            refresh_token.save()
+            refresh_token.save(storage)
             
             return function_response(True, refresh_token.to_dict())
         except Exception:
             return function_response(False)
         
-    def verify_agent_refresh(self, token: str):
+    def verify_agent_refresh(self, token: str, storage: DBStorage):
         """ a method to validate the agent refresh token in the request
         Args:
             token: the token to be queried for

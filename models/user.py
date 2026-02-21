@@ -6,6 +6,7 @@ from datetime import date, datetime
 from sqlalchemy import String, Boolean, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pydantic import BaseModel, EmailStr
+from typing import List
 
 from .base_model import Base, Basemodel
 
@@ -50,7 +51,9 @@ class User(Basemodel, Base):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     level: Mapped[UserLevel] = mapped_column(Enum(UserLevel), default=UserLevel.UNVERIFIED)
     old_level: Mapped[UserLevel] = mapped_column(Enum(UserLevel), default=UserLevel.UNVERIFIED)
-    refresh_token: Mapped["RefreshToken"] = relationship(back_populates="user", cascade="all, delete")
+
+    bookings: Mapped[List["Booking"]] = relationship(back_populates="user", cascade="all, delete, delete-orphan")
+    refresh_token: Mapped["RefreshToken"] = relationship(back_populates="user", cascade="all, delete, delete-orphan")
 
     def __init__(
         self, 

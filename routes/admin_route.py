@@ -1,10 +1,10 @@
 """ a module to define the admin routes and operations in the database """
 
-from fastapi import APIRouter, Depends, Body, UploadFile, File
+from fastapi import APIRouter, Depends, Body, UploadFile, File, Request
 from fastapi.responses import JSONResponse
 from typing import Dict
 
-from database.storage_engine import DBStorage, storage
+from database.storage_engine import DBStorage
 from models.agent_model import AgentCreate, Agent, UpdateAgentTier
 from models.admin_model import Admin
 from models.booking_model import BookingStatus, Status
@@ -20,13 +20,14 @@ from services.file_management import file_manager
 admin = APIRouter(prefix="/admin", tags=["Admin"], dependencies=[Depends(get_admin_from_access_token)])
 
 @admin.post("/agent/add")
-def add_agent(agent: AgentCreate, get_admin_response = Depends(get_admin_from_access_token)):
+async def add_agent(agent: AgentCreate, request: Request, get_admin_response = Depends(get_admin_from_access_token)):
     """ an endpoint to create a new agent by the admin
     Args:
         agent: the agent informations holding the agent name, email and password
-        get_admin_response
-e = the admin as saved in the access token
+        get_admin_response = the admin as saved in the access token
     """
+
+    storage: DBStorage = request.state.storage
 
     if not get_admin_response.status:
         content = api_response(False, "The user is not allowed to use this route")
@@ -54,19 +55,21 @@ e = the admin as saved in the access token
     password = password_response.payload
 
     admin.agents.append(Agent(agent.name, agent.email, ph.hash(password), agent.phone_number))
-    admin.save()
+    admin.save(storage)
 
     content = api_response(True, f"Agent {agent.name} has been added successfully")
     return JSONResponse(content.model_dump())
 
 @admin.get("/agents")
 @admin.get("/agents/{agent_id}")
-def get_agent_info(agent_id: str | None = None, page: int = 1, offset: int=10, limit: int=10, get_admin_response=Depends(get_admin_from_access_token)):
+async def get_agent_info(request: Request, agent_id: str | None = None, page: int = 1, offset: int=10, limit: int=10, get_admin_response=Depends(get_admin_from_access_token)):
     """ an endpoint to get all or one of an agent if the agent_id is provided
     Args:
         agent_id: the agent id if it is provided
         get_admin_response: the admin response from the access token
     """
+
+    storage: DBStorage = request.state.storage
 
     if not get_admin_response.status:
         content = api_response(False, "The user is not allowed to use this route")
@@ -89,12 +92,14 @@ def get_agent_info(agent_id: str | None = None, page: int = 1, offset: int=10, l
     return JSONResponse(content.model_dump())
 
 @admin.delete("/agent/{agent_id}")
-def delete_admin(agent_id: str, get_admin_response = Depends(get_admin_from_access_token)):
+async def delete_admin(agent_id: str, request: Request, get_admin_response = Depends(get_admin_from_access_token)):
     """an endpoint to delete an agent from the database along with all the agents celebs
     Args:
         agent_id: the id of the agent to be added
         get_admin_response: the admin response from the access token
         """
+    
+    storage: DBStorage = request.state.storage
     
     if not get_admin_response.status:
         content = api_response(False, "The user is not allowed to use this route")
@@ -114,13 +119,15 @@ def delete_admin(agent_id: str, get_admin_response = Depends(get_admin_from_acce
     agent = agent_response.payload
     if agent.profile_url:
         file_manager.delete_agent_file(agent.profile_url)
-    agent.delete()
+    agent.delete(storage)
     content = api_response(True, "Agent deleted")
     return JSONResponse(content.model_dump())
 
 @admin.patch("/agent/{agent_id}/profile/update")
-def update_agent(agent_id: str, payload: Dict[str, str] = Body(), get_admin_response = Depends(get_admin_from_access_token)):
+async def update_agent(agent_id: str, request: Request, payload: Dict[str, str] = Body(), get_admin_response = Depends(get_admin_from_access_token)):
     """ an endpoint to update an agent """
+
+    storage: DBStorage = request.state.storage
 
     if not get_admin_response.status:
         content = api_response(False, "The user is not allowed to use this route")
@@ -146,13 +153,13 @@ def update_agent(agent_id: str, payload: Dict[str, str] = Body(), get_admin_resp
         return JSONResponse(content.model_dump())
 
     agent.name = name
-    agent.save()
+    agent.save(storage)
 
     content = api_response(True, "the agent has been updated successfully", agent.to_dict())
     return JSONResponse(content.model_dump())
 
 @admin.put("/agent/{agent_id}/profile/picture")
-def add_agent_image(agent_id: str, file: UploadFile = File(), get_admin_response = Depends(get_admin_from_access_token)):
+async def add_agent_image(agent_id: str, request: Request, file: UploadFile = File(), get_admin_response = Depends(get_admin_from_access_token)):
     """
     Docstring for add_agent_image
     
@@ -162,6 +169,8 @@ def add_agent_image(agent_id: str, file: UploadFile = File(), get_admin_response
     :type file: UploadFile
     :param get_admin_response: the admin response from the access token
     """
+
+    storage: DBStorage = request.state.storage
 
     if not get_admin_response.status:
         content = api_response(False, "The user is not allowed to use this route")
@@ -193,18 +202,20 @@ def add_agent_image(agent_id: str, file: UploadFile = File(), get_admin_response
         file_manager.delete_agent_file(agent.profile_url)
 
     agent.profile_url = location_response.payload
-    agent.save()
+    agent.save(storage)
     content = api_response(True, "The image has been saved successfully", agent.to_dict())
     return JSONResponse(content.model_dump())
 
 @admin.patch("/agent/{agent_id}/profile/level")
-def update_agent_tier(agent_id: str, payload: UpdateAgentTier, get_admin_response = Depends(get_admin_from_access_token)):
+async def update_agent_tier(agent_id: str, payload: UpdateAgentTier, request: Request, get_admin_response = Depends(get_admin_from_access_token)):
     """an endpoint to update the tier of an agent by an admin
     Args:
         agent_id: the id of the agent
         payload: the new tier of the agent
         get_admin_response: the admin response from the access token
     """
+
+    storage: DBStorage = request.state.storage
 
     if not get_admin_response.status:
         content = api_response(False, "The user is not allowed to use this route")
@@ -226,17 +237,19 @@ def update_agent_tier(agent_id: str, payload: UpdateAgentTier, get_admin_respons
     
     agent: Agent = agent_response.payload
     agent.tier = new_tier
-    agent.save()
+    agent.save(storage)
     content = api_response(True, "Agent tier updated successfully", agent.to_dict())
     return JSONResponse(content.model_dump())
 
 @admin.get("/celebs")
-def get_all_celebs(page: int = 1, limit: int = 10, get_admin_response = Depends(get_admin_from_access_token)):
+async def get_all_celebs(request:Request, page: int = 1, limit: int = 10, get_admin_response = Depends(get_admin_from_access_token)):
     """ a method to get the admin response for the provided page
     Args:
         page: the current page
         limit: the amount of data to be presented for each page
     """
+
+    storage: DBStorage = request.state.storage
 
     if not get_admin_response.status:
         content = api_response(False, "The user is not allowed to use this route")
@@ -254,13 +267,15 @@ def get_all_celebs(page: int = 1, limit: int = 10, get_admin_response = Depends(
 
 @admin.get("/users")
 @admin.get("/users/{user_id}")
-def get_all_user(user_id: str = None, page: int = 1, limit: int = 10, get_admin_response = Depends(get_admin_from_access_token)):
+async def get_all_user(request: Request, user_id: str = None, page: int = 1, limit: int = 10, get_admin_response = Depends(get_admin_from_access_token)):
     """ an endpoint to get the user from the database for the admin
     Args:
         user_id: the user id of the user
         page: the current page
         limit: the limit of the page
     """
+
+    storage: DBStorage = request.state.storage
 
     if not get_admin_response.status:
         content = api_response(False, "The user is not allowed to use this route")
@@ -283,11 +298,13 @@ def get_all_user(user_id: str = None, page: int = 1, limit: int = 10, get_admin_
     return JSONResponse(content.model_dump())
 
 @admin.delete("/user/{user_id}")
-def delete_user_by_admin(user_id: str, get_admin_response = Depends(get_admin_from_access_token)):
+async def delete_user_by_admin(user_id: str, request: Request, get_admin_response = Depends(get_admin_from_access_token)):
     """an endpoint to delete a user by an admin
     Args:
         user_id: the id of the user to be deleted
     """
+
+    storage: DBStorage = request.state.storage
 
     if not get_admin_response.status:
         content = api_response(False, "The user is not allowed to use this route")
@@ -303,19 +320,22 @@ def delete_user_by_admin(user_id: str, get_admin_response = Depends(get_admin_fr
         return JSONResponse(content.model_dump(), 500)
     
     user = user_response.payload
-    user.delete()
+    user.delete(storage)
 
     content = api_response(True, "The user has been deleted successfully")
     return JSONResponse(content.model_dump())
 
 @admin.patch("/user/{user_id}/profile/level")
-def update_user_level(user_id: str, payload: UpdateUserLevel, get_admin_response = Depends(get_admin_from_access_token)):
+async def update_user_level(user_id: str, payload: UpdateUserLevel, request: Request, get_admin_response = Depends(get_admin_from_access_token)):
     """ an endpoint for an admin to update a user level to either basic or premium
     Args:
         user_id: the id of the user to be updated
         payload: the user level to be updated
         get_admin_response: the admin response from the access token
     """
+
+    storage: DBStorage = request.state.storage
+
     if not get_admin_response.status:
         content = api_response(False, "The user is not allowed to use this route")
         return JSONResponse(content.model_dump(), 401)
@@ -335,17 +355,19 @@ def update_user_level(user_id: str, payload: UpdateUserLevel, get_admin_response
     user.level = user_level
     user.old_level = user_level
 
-    user.save()
+    user.save(storage)
     content = api_response(True, "The users level has been updated successfully", user.to_dict())
     return JSONResponse(content.model_dump())
 
 @admin.get("/bookings/{booking_id}")
-def get_booking_for_admin(booking_id: str, get_admin_response=Depends(get_admin_from_access_token)):
+async def get_booking_for_admin(booking_id: str, request: Request, get_admin_response=Depends(get_admin_from_access_token)):
     """ an endpoint to get a booking based on the provided booking id
     Args:
         booking_id: the booking id to search for
         get_admin_response: the admin from the access token
     """
+
+    storage: DBStorage = request.state.storage
 
     if not get_admin_response.status:
         content = api_response(False, "The user is not allowed to use this route")
@@ -360,17 +382,24 @@ def get_booking_for_admin(booking_id: str, get_admin_response=Depends(get_admin_
         content = api_response(False, "No booking is found for the provided id")
     else:
         booking = booking_response.payload
-        content = api_response(True, "Booking successfully retrieved", booking.to_dict())
+        # print(booking.celeb, "===", booking.?user)
+        content = api_response(True, "Booking successfully retrieved", {
+            "booking": booking.to_dict(),
+            "user": booking.user.name,
+            "celebrity": booking.celeb.name
+        })
     return JSONResponse(content.model_dump())
 
 @admin.patch("/bookings/{booking_id}")
-def update_booking_to_approved(booking_id: str, payload: BookingStatus, get_admin_response=Depends(get_admin_from_access_token)):
+async def update_booking_to_approved(booking_id: str, payload: BookingStatus, request: Request, get_admin_response=Depends(get_admin_from_access_token)):
     """ a method to update the booking status to paid by the admin
     Args:
         booking_id: the booking id to update
         payload: the new status
         get_admin_response: the admin from the access token
     """
+
+    storage: DBStorage = request.state.storage
 
     if not get_admin_response.status:
         content = api_response(False, "The user is not allowed to use this route")
@@ -396,7 +425,7 @@ def update_booking_to_approved(booking_id: str, payload: BookingStatus, get_admi
         return JSONResponse(content.model_dump())
     
     booking.status = Status.PAID
-    booking.save()
+    booking.save(storage)
 
     content = api_response(True, "The booking has been paid for", booking.to_dict())
     return JSONResponse(content.model_dump())

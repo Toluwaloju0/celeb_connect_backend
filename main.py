@@ -12,7 +12,9 @@ from routes.auth_route import auth
 from routes.user_route import user
 from routes.admin_route import admin
 from routes.agent_route import agent
-from database.storage_engine import storage
+from middlewares.session_middleware import DBSessionMiddleware
+from utils.create_all_tables import create_tables
+
 app = FastAPI()
 
 app.add_middleware(
@@ -45,23 +47,10 @@ app.include_router(user)
 app.include_router(admin)
 app.include_router(agent)
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    storage.rollback()
-    return JSONResponse(
-        status_code=500,
-        content={
-            "detail": "Internal Server Error",
-            "error": str(exc),  # remove in production
-        },
-    )
-
-
-@app.middleware("http")
-async def after_request_middleware(request: Request, call_next):
-    response = await call_next(request)
-    storage.close()
-    return response
+app.add_middleware(DBSessionMiddleware)
 
 if __name__ == "__main__":
+
+    create_tables() # create all the neccesary tables
+
     uvicorn.run("main:app", port=8080, reload=True)
