@@ -53,4 +53,4 @@ if __name__ == "__main__":
 
     create_tables() # create all the neccesary tables
 
-    uvicorn.run("main:app", port=8080, reload=True)
+    uvicorn.run("main:app", port=8081, reload=True)

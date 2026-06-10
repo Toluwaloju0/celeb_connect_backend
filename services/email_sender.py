@@ -17,13 +17,15 @@ class EmailSender:
 
     def __init__(self):
         """ the class initializer"""
+        pass
 
-        self.__sender = smtplib.SMTP("smtp.gmail.com", 587)
-        self.__sender.starttls()
-        account = getenv("GOOGLE_ACCOUNT")
-        password = getenv("GOOGLE_PASSWORD")
-
-        self.__sender.login(account, password)
+    def _create_connection(self):
+        """ Create and setup SMTP connection
+        Return: SMTP connection object
+        """
+        sender = smtplib.SMTP("smtp.gmail.com", 586)
+        sender.starttls()
+        return sender
 
     def send_otp_code(self, email_address: str, storage: DBStorage):
         """ a method to send otp codes to the provided email address and save the sent otp code to the database
@@ -89,7 +91,9 @@ class EmailSender:
 </html>
 """, subtype="html")
         
-        self.__sender.send_message(message)
+        sender = self._create_connection()
+        sender.send_message(message)
+        sender.quit()
 
         return function_response(True, {"code": otp_code})
     
@@ -188,7 +192,9 @@ class EmailSender:
 </html>
 """, subtype="html")
         
-        self.__sender.send_message(message)
+        sender = self._create_connection()
+        sender.send_message(message)
+        sender.quit()
         return function_response(True, password)
 
 email_sender = EmailSender()
