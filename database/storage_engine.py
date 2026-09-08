@@ -98,7 +98,7 @@ class DBStorage:
             return function_response(True, otp_object)
         return function_response(False)
     
-    def get_admin_from_email(self, email, password):
+    def get_admin_from_email(self, email, password: str | None = None):
         """ a method to get the admin from the database using the email address
         Args:
             email: the email of the admin in the database
@@ -109,11 +109,19 @@ class DBStorage:
         admin = self.__session.scalars(select(Admin).where(Admin.email == email)).one_or_none()
         if not admin:
             return function_response(False)
+        if password is None:
+            return function_response(True, admin)
         try:
             ph.verify(admin.password, password)
             return function_response(True, admin)
         except VerifyMismatchError:
             return function_response(False)
+
+    def get_admin_count(self):
+        """Return the number of administrator accounts."""
+        from models.admin_model import Admin
+
+        return self.__session.scalar(select(func.count()).select_from(Admin))
     
     
     def get_admin_from_id(self, admin_id):
