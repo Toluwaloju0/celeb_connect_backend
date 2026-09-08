@@ -37,7 +37,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",   # Vite (React)
-        "https://celeb-connect-frontend.vercel.app/",
+        "https://celeb-connect-frontend.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],  # GET, POST, PUT, DELETE, OPTIONS
