@@ -7,7 +7,7 @@ from fastapi import Response
 
 def _cookie_options() -> dict:
     """Return cookie attributes appropriate for the configured environment."""
-       return {
+    return {
         "httponly": True,
         "secure": True,
         "samesite": "none",
