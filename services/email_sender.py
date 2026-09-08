@@ -1,10 +1,10 @@
-""" a module to create a function to send email to a user"""
+"""Send transactional emails through Resend."""
 
-import smtplib
-
+import logging
 from os import getenv
-from email.message import EmailMessage
 from datetime import datetime
+
+import resend
 
 from models.otp_codes_model import OtpCode
 from database.storage_engine import DBStorage
@@ -12,20 +12,40 @@ from utils.create_otp_code import create_otp
 from utils.responses import function_response
 from utils.id_string import uuid
 
+logger = logging.getLogger(__name__)
+
+
 class EmailSender:
-    """ a class which holds functions to send emails to a user"""
+    """Send application emails through the Resend API."""
 
-    def __init__(self):
-        """ the class initializer"""
-        pass
+    def _from_address(self):
+        """Build a sender address from the configured Resend domain."""
+        domain = (getenv("RESEND_DOMAIN") or "").strip().lstrip("@")
+        if not domain:
+            return "Celeb Connect <onboarding@resend.dev>"
+        return f"Celeb Connect <noreply@{domain}>"
 
-    def _create_connection(self):
-        """ Create and setup SMTP connection
-        Return: SMTP connection object
-        """
-        sender = smtplib.SMTP("smtp.gmail.com", 586)
-        sender.starttls()
-        return sender
+    def _send_email(self, recipient, subject, text, html):
+        """Send an email and return whether Resend accepted the request."""
+        api_key = getenv("RESEND_API_KEY")
+        if not api_key:
+            logger.error("RESEND_API_KEY is not configured")
+            return False
+
+        resend.api_key = api_key
+        try:
+            resend.Emails.send({
+                "from": self._from_address(),
+                "to": [recipient],
+                "subject": subject,
+                "text": text,
+                "html": html,
+            })
+        except Exception:
+            logger.exception("Failed to send email through Resend")
+            return False
+
+        return True
 
     def send_otp_code(self, email_address: str, storage: DBStorage):
         """ a method to send otp codes to the provided email address and save the sent otp code to the database
@@ -48,13 +68,7 @@ class EmailSender:
             otp_code_object = OtpCode(email_address, otp_code)
         otp_code_object.save(storage)
 
-        # send the email to the user
-        message = EmailMessage()
-        message["To"] = email_address
-        message["From"] = getenv("GOOGLE_ACCOUNT")
-        message["Subject"] = "Celeb Connect Validation Email"
-        message.set_content(f"The validation code is {otp_code}")
-        message.add_alternative(f"""
+        html = f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -89,11 +103,14 @@ class EmailSender:
 
 </body>
 </html>
-""", subtype="html")
-        
-        sender = self._create_connection()
-        sender.send_message(message)
-        sender.quit()
+"""
+        if not self._send_email(
+            email_address,
+            "Celeb Connect Validation Email",
+            f"The validation code is {otp_code}",
+            html,
+        ):
+            return function_response(False)
 
         return function_response(True, {"code": otp_code})
     
@@ -106,12 +123,7 @@ class EmailSender:
 
         password = uuid().split("-")[-1]
 
-        message = EmailMessage()
-        message["To"] = agent_email
-        message["From"] = getenv("GOOGLE_ACCOUNT")
-        message["Subject"] = "Celeb Connect Validation Email"
-        message.set_content(f"The password is {password}")
-        message.add_alternative(f"""
+        html = f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -190,11 +202,15 @@ class EmailSender:
     </table>
 </body>
 </html>
-""", subtype="html")
-        
-        sender = self._create_connection()
-        sender.send_message(message)
-        sender.quit()
+"""
+        if not self._send_email(
+            agent_email,
+            "Celeb Connect Validation Email",
+            f"The password is {password}",
+            html,
+        ):
+            return function_response(False)
+
         return function_response(True, password)
 
 email_sender = EmailSender()

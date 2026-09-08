@@ -52,6 +52,10 @@ async def add_agent(agent: AgentCreate, request: Request, get_admin_response = D
     
     # send an email to the agent with an otp code for email verification
     password_response = email_sender.send_agent_password(agent.email)
+    if not password_response.status:
+        content = api_response(False, "The agent email could not be sent")
+        return JSONResponse(content.model_dump(), 500)
+
     password = password_response.payload
 
     admin.agents.append(Agent(agent.name, agent.email, ph.hash(password), agent.phone_number))

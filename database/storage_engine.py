@@ -1,16 +1,14 @@
-""" a module to provide connection to MySql database for user storage and queries """
+"""Provide PostgreSQL-backed storage and queries for application data."""
 
-from os import getenv
-from sqlalchemy import create_engine, select, delete, func
+from sqlalchemy import select, delete, func
 from sqlalchemy.orm import Session
 from argon2.exceptions import VerifyMismatchError
-from fastapi import Depends
 
 from utils.responses import function_response
 from utils.check_password import ph
 
 class DBStorage:
-    """ The storage class with a connection to mysql for storage """
+    """The storage class backed by a SQLAlchemy PostgreSQL session."""
 
     def __init__(self, session: Session):
         """ a method to create the database connection string """
