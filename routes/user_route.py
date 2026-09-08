@@ -14,6 +14,7 @@ from utils.check_password import ph, check_password_strength
 from utils.check_email import check_email
 from utils.booking_price import price_converter
 from middlewares.get_user_from_cookies import get_user_from_access_token
+from utils.auth_cookies import clear_auth_cookies
 from database.storage_engine import DBStorage
 
 user = APIRouter(prefix="/user", tags=["Users"], dependencies=[Depends(get_user_from_access_token)])
@@ -169,8 +170,7 @@ async def delete_me(request: Request, user_response = Depends(get_user_from_acce
 
     content = api_response(True, "The user has been deleted")
     response = JSONResponse(content.model_dump())
-    response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token")
+    clear_auth_cookies(response)
     return response
 
 @user.get("/agents")

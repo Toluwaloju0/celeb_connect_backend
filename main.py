@@ -1,6 +1,7 @@
 """ the main application module """
 
 from contextlib import asynccontextmanager
+from os import getenv
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -33,12 +34,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+allowed_origins = [
+    origin.strip()
+    for origin in getenv(
+        "FRONTEND_ORIGINS",
+        "http://localhost:5173,https://celeb-connect-frontend.vercel.app",
+    ).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # Vite (React)
-        "https://celeb-connect-frontend.vercel.app",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],  # GET, POST, PUT, DELETE, OPTIONS
     allow_headers=["*"],  # Authorization, Content-Type, etc

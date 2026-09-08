@@ -18,6 +18,7 @@ from middlewares.agent_access_token import verify_agent_access_token
 from services.email_sender import email_sender
 from utils.id_string import uuid
 from utils.delete_refresh_token import delete_refresh_token
+from utils.auth_cookies import clear_auth_cookies, set_auth_cookies
 
 auth = APIRouter(tags=["Authentication"], prefix="/auth")
 
@@ -61,8 +62,11 @@ async def signup(user: UserCreate, request: Request):
     # create the refresh token for user refresh
     content = api_response(True, "The user has been created", user.to_dict())
     response = JSONResponse(content.model_dump(), 201)
-    response.set_cookie("access_token", access_tokesn_response.payload.get("access_token"))
-    response.set_cookie("refresh_token", refresh_token_response.payload.get("refresh_token"))
+    set_auth_cookies(
+        response,
+        access_tokesn_response.payload.get("access_token"),
+        refresh_token_response.payload.get("refresh_token"),
+    )
     return response
 
 
@@ -87,8 +91,11 @@ async def login(user: UserLogin, request: Request):
     refresh_token_response = token_manager.create_refresh_token(user.id, storage)
     content = api_response(True, "Login successful", user.to_dict())
     response = JSONResponse(content.model_dump())
-    response.set_cookie("access_token", access_token_response.payload.get("access_token"))
-    response.set_cookie("refresh_token", refresh_token_response.payload.get("refresh_token"))
+    set_auth_cookies(
+        response,
+        access_token_response.payload.get("access_token"),
+        refresh_token_response.payload.get("refresh_token"),
+    )
     return response
 
 @auth.get("/otp/request")
@@ -182,8 +189,7 @@ async def logout(request: Request, user_response = Depends(get_user_from_access_
 
     content = api_response(True, "Log out successful")
     response = JSONResponse(content.model_dump())
-    response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token")
+    clear_auth_cookies(response)
 
     return response
 
@@ -215,8 +221,11 @@ async def refresh_token(request: Request):
     token_object.delete(storage)
     content = api_response(True, "The refresh is successful")
     response = JSONResponse(content.model_dump())
-    response.set_cookie("access_token", access_token_response.payload.get("access_token"))
-    response.set_cookie("refresh_token", refresh_token_response.payload.get("refresh_token"))
+    set_auth_cookies(
+        response,
+        access_token_response.payload.get("access_token"),
+        refresh_token_response.payload.get("refresh_token"),
+    )
     return response
 
 @auth.post("/admin/login")
@@ -241,8 +250,7 @@ async def admin_login(admin: AdminLogin, request: Request):
 
     content = api_response(True, "The admin logged in successfully", AdminUser.to_dict())
     response = JSONResponse(content.model_dump())
-    response.set_cookie("access_token", access_token_response.payload.get("access_token"))
-    response.set_cookie("refresh_token", AdminUser.refresh_token)
+    set_auth_cookies(response, access_token_response.payload.get("access_token"), AdminUser.refresh_token)
     return response
 
 @auth.get("/admin/refresh")
@@ -267,8 +275,7 @@ async def refresh_admin_token(request: Request):
 
     content = api_response(True, "The refresh is successful")
     response = JSONResponse(content.model_dump())
-    response.set_cookie("access_token", access_token_response.payload.get("access_token"))
-    response.set_cookie("refresh_token", AdminUser.refresh_token)
+    set_auth_cookies(response, access_token_response.payload.get("access_token"), AdminUser.refresh_token)
     return response
 
 @auth.post("/admin/logout")
@@ -289,8 +296,7 @@ async def log_out_admin(request: Request, admin_response = Depends(get_admin_fro
 
     content = api_response(True, "Logout successful")
     response = JSONResponse(content.model_dump())
-    response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token")
+    clear_auth_cookies(response)
     return response
 
 @auth.post("/agent/login")
@@ -319,8 +325,11 @@ async def agent_login(agent: AgentLogin, request: Request):
 
     content = api_response(True, "Login successful", agent.to_dict())
     response = JSONResponse(content.model_dump())
-    response.set_cookie("access_token", access_token_response.payload.get("access_token"))
-    response.set_cookie("refresh_token", refresh_token_response.payload.get("id"))
+    set_auth_cookies(
+        response,
+        access_token_response.payload.get("access_token"),
+        refresh_token_response.payload.get("id"),
+    )
     return response
 
 @auth.get("/agent/refresh")
@@ -345,8 +354,11 @@ async def refresh_agent_token(request: Request):
 
     content = api_response(True, "Token refresh successful")
     response = JSONResponse(content.model_dump())
-    response.set_cookie("access_token", access_token_response.payload.get("access_token"))
-    response.set_cookie("refresh_token", refresh_token_response.payload.get("id"))
+    set_auth_cookies(
+        response,
+        access_token_response.payload.get("access_token"),
+        refresh_token_response.payload.get("id"),
+    )
     return response
 
 @auth.post("/agent/logout")
@@ -368,6 +380,5 @@ async def agent_log_out(request: Request, get_agent_response = Depends(verify_ag
 
     content = api_response(True, "Log out successful")
     response = JSONResponse(content.model_dump())
-    response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token")
+    clear_auth_cookies(response)
     return response
