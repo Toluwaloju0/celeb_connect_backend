@@ -218,6 +218,8 @@ async def refresh_token(request: Request):
     access_token_response = token_manager.create_access_token(user_id)
     refresh_token_response = token_manager.create_refresh_token(user_id, storage)
 
+    print("the refresh token is", refresh_token_response.payload)
+
     token_object.delete(storage)
     content = api_response(True, "The refresh is successful")
     response = JSONResponse(content.model_dump())

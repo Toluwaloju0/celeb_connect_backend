@@ -35,12 +35,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 allowed_origins = [
-    origin.strip()
-    for origin in getenv(
-        "FRONTEND_ORIGINS",
-        "http://localhost:5173,https://celeb-connect-frontend.vercel.app",
-    ).split(",")
-    if origin.strip()
+        "http://localhost:5173", "https://celeb-connect-frontend.vercel.app", "htttp://localhost:8000"
 ]
 
 app.add_middleware(
