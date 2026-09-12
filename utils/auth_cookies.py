@@ -5,7 +5,7 @@ from os import getenv
 from fastapi import Response
 
 ACCESS_TOKEN_MAX_AGE = 5 * 60
-REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60
+REFRESH_TOKEN_MAX_AGE = 60 * 60
 
 def _cookie_options() -> dict:
     """Return cookie attributes appropriate for the configured environment."""
